@@ -67,8 +67,10 @@ export default function App() {
     return ok && st;
   });
 
-  const ultimoLido = [...lidos].filter(l => l.dataTermino)
-    .sort((a,b) => new Date(b.dataTermino) - new Date(a.dataTermino))[0];
+  const ultimoLido = lidos && lidos.length > 0 
+    ? [...lidos].filter(l => l.dataTermino)
+        .sort((a,b) => new Date(b.dataTermino) - new Date(a.dataTermino))[0]
+    : null;
 
   if (authLoading) return (
     <div style={{ minHeight:'100vh', background: GRAD_BG, display:'flex', alignItems:'center', justifyContent:'center' }}>
@@ -100,7 +102,7 @@ export default function App() {
                 }}>{a.label}</button>
               ))}
             </nav>
-            <Auth user={user} DA={DA} GRAD_BTN={GRAD_BTN} />
+            {auth.onAuthStateChanged && <Auth user={user} DA={DA} GRAD_BTN={GRAD_BTN} />}
           </div>
         </div>
       </header>

@@ -11,7 +11,22 @@ const firebaseConfig = {
   appId:             import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-const app      = initializeApp(firebaseConfig);
-export const db       = getFirestore(app);
-export const auth     = getAuth(app);
-export const provider = new GoogleAuthProvider();
+// Verifica se as variáveis essenciais estão presentes para evitar crash
+const isFirebaseConfigured = !!firebaseConfig.apiKey && !!firebaseConfig.projectId;
+
+let app;
+try {
+  if (isFirebaseConfigured) {
+    app = initializeApp(firebaseConfig);
+  } else {
+    console.warn("Firebase não configurado. O app funcionará apenas em modo local.");
+    app = { isDummy: true };
+  }
+} catch (error) {
+  console.error("Erro ao inicializar Firebase:", error);
+  app = { isDummy: true };
+}
+
+export const db       = isFirebaseConfigured ? getFirestore(app) : null;
+export const auth     = isFirebaseConfigured ? getAuth(app) : { onAuthStateChanged: (auth, cb) => cb(null) };
+export const provider = isFirebaseConfigured ? new GoogleAuthProvider() : null;
