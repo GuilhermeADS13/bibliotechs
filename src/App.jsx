@@ -327,16 +327,16 @@ export default function App() {
             </div>
 
             {loading ? (
-              <div style={{ textAlign:'center', padding:'60px', color:DA.warmBeige }}>
-                <div style={{ fontSize:'36px', marginBottom:'12px', animation:'pulse 1.4s infinite' }}>📚</div>
-                <p style={{ fontWeight:'600' }}>Carregando estante...</p>
+              <div style={{ background:'rgba(245,240,224,0.93)', borderRadius:'20px', padding:'60px 40px', textAlign:'center', boxShadow:'0 8px 40px rgba(10,4,2,0.55)', border:`1px solid rgba(196,154,108,0.4)`, backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)' }}>
+                <div style={{ fontSize:'40px', marginBottom:'14px', animation:'pulse 1.4s infinite' }}>📚</div>
+                <p style={{ fontWeight:'700', fontSize:'15px', color:DA.espresso }}>Carregando estante...</p>
               </div>
             ) : livrosFiltrados.length === 0 ? (
-              <div style={{ textAlign:'center', padding:'60px', color:DA.warmBeige }}>
-                <div style={{ fontSize:'52px', marginBottom:'12px' }}>📭</div>
-                <p style={{ fontSize:'16px', fontWeight:'700', color:DA.walnut, marginBottom:'8px' }}>Nenhum livro encontrado</p>
-                {busca && <p style={{ fontSize:'13px' }}>Tente outro termo de busca</p>}
-                {!busca && <button onClick={() => setAba('adicionar')} style={{ marginTop:'16px', background:GRAD_BTN, color:DA.cream, border:'none', borderRadius:'10px', padding:'11px 24px', fontWeight:'800', cursor:'pointer', fontSize:'13px' }}>➕ Adicionar Livro</button>}
+              <div style={{ background:'rgba(245,240,224,0.93)', borderRadius:'20px', padding:'60px 40px', textAlign:'center', boxShadow:'0 8px 40px rgba(10,4,2,0.55)', border:`1px solid rgba(196,154,108,0.4)`, backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)' }}>
+                <div style={{ fontSize:'52px', marginBottom:'14px' }}>📭</div>
+                <p style={{ fontSize:'17px', fontWeight:'800', color:DA.espresso, marginBottom:'8px' }}>Nenhum livro encontrado</p>
+                {busca && <p style={{ fontSize:'13px', color:DA.walnut }}>Tente outro termo de busca</p>}
+                {!busca && <button onClick={() => setAba('adicionar')} style={{ marginTop:'18px', background:GRAD_BTN, color:DA.cream, border:'none', borderRadius:'10px', padding:'12px 26px', fontWeight:'800', cursor:'pointer', fontSize:'13px', boxShadow:'0 4px 14px rgba(107,30,42,0.35)' }}>➕ Adicionar Livro</button>}
               </div>
             ) : (
               <>
@@ -455,6 +455,7 @@ export default function App() {
     </div>
   );
 }
+
 
 
 
