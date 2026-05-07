@@ -82,8 +82,8 @@ export function BookForm({ onSave, DA, GRAD_BTN }) {
           />
           <button type="button" onClick={buscar} style={{
             background: GRAD_BTN, color: DA?.cream, border: 'none', borderRadius: '10px',
-            padding: '10px 18px', fontWeight: '800', cursor: 'pointer', fontSize: '14px',
-            boxShadow: `0 3px 10px rgba(107,30,42,0.3)`, whiteSpace: 'nowrap',
+            padding: '12px 28px', fontWeight: '800', cursor: 'pointer', fontSize: '14px',
+            boxShadow: `0 4px 14px rgba(107,30,42,0.35)`, whiteSpace: 'nowrap',
             transition: 'transform .15s',
           }}
             onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.03)'}

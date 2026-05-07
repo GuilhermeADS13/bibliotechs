@@ -139,9 +139,9 @@ export function BookCard({ livro, DA, GRAD_BTN, onAtualizar, onRemover, onResenh
             gap: '6px', padding: '12px',
           }}>
             <button onClick={onResenha} style={{
-              background: GRAD_BTN, color: DA.cream, border: 'none', borderRadius: '9px',
-              padding: '8px 0', fontWeight: '700', fontSize: '12px', cursor: 'pointer', width: '100%',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.3)', transition: 'transform .15s',
+              background: GRAD_BTN, color: DA.cream, border: 'none', borderRadius: '10px',
+              padding: '10px 0', fontWeight: '700', fontSize: '13px', cursor: 'pointer', width: '100%',
+              boxShadow: '0 4px 14px rgba(107,30,42,0.35)', transition: 'transform .15s',
             }}
               onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.02)'}
               onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}>

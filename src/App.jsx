@@ -28,6 +28,18 @@ const GLASS_PANEL = 'rgba(245,240,224,0.85)';
 const GLASS_BORDER = '1px solid rgba(255,255,255,0.18)';
 const PANEL_SHADOW = '0 18px 60px rgba(131,84,30,0.18)';
 const WARM_SHADOW = '0 10px 30px rgba(131,84,30,0.16)';
+const CTA_BTN = {
+  background: GRAD_BTN,
+  color: DA.cream,
+  border: 'none',
+  borderRadius: '10px',
+  padding: '12px 28px',
+  fontWeight: '800',
+  cursor: 'pointer',
+  fontSize: '14px',
+  boxShadow: '0 4px 14px rgba(107,30,42,0.35)',
+  transition: 'transform .15s, box-shadow .15s',
+};
 
 const ABAS = [
   { key:'inicio', label:'Início', emoji:'🏠' },
@@ -240,7 +252,7 @@ export default function App() {
                 <div style={{ fontSize:'52px', marginBottom:'14px' }}>📚</div>
                 <p style={{ color:DA.chocolate, fontSize:'17px', fontWeight:'700', marginBottom:'6px' }}>Sua estante está vazia</p>
                 <p style={{ color:DA.warmBeige, fontSize:'14px', marginBottom:'22px' }}>Adicione seu primeiro livro para começar!</p>
-                <button onClick={() => setAba('adicionar')} style={{ background:GRAD_BTN, color:DA.cream, border:'none', borderRadius:'10px', padding:'12px 28px', fontWeight:'800', cursor:'pointer', fontSize:'14px', boxShadow:`0 4px 14px rgba(107,30,42,0.35)` }}>
+                <button onClick={() => setAba('adicionar')} style={{ ...CTA_BTN }}>
                   ➕ Adicionar Primeiro Livro
                 </button>
               </div>
@@ -340,7 +352,7 @@ export default function App() {
                 <div style={{ fontSize:'52px', marginBottom:'14px' }}>📭</div>
                 <p style={{ fontSize:'17px', fontWeight:'800', color:DA.espresso, marginBottom:'8px' }}>Nenhum livro encontrado</p>
                 {busca && <p style={{ fontSize:'13px', color:DA.walnut }}>Tente outro termo de busca</p>}
-                {!busca && <button onClick={() => setAba('adicionar')} style={{ marginTop:'18px', background:GRAD_BTN, color:DA.cream, border:'none', borderRadius:'10px', padding:'12px 26px', fontWeight:'800', cursor:'pointer', fontSize:'13px', boxShadow:'0 4px 14px rgba(107,30,42,0.35)' }}>➕ Adicionar Livro</button>}
+                {!busca && <button onClick={() => setAba('adicionar')} style={{ ...CTA_BTN, marginTop:'18px' }}>➕ Adicionar Livro</button>}
               </div>
             ) : (
               <>

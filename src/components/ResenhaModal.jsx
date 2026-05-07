@@ -124,7 +124,7 @@ export function ResenhaModal({ livro, DA, GRAD_BTN, onSalvar, onFechar }) {
             Cancelar
           </button>
           <button onClick={() => onSalvar(resenha, nota, fotoUsuario)} style={{
-            flex:1, padding:'13px', borderRadius:'12px', border:'none',
+            flex:1, padding:'13px', borderRadius:'10px', border:'none',
             background: GRAD_BTN, color: DA.cream, fontWeight:'800', cursor:'pointer',
             fontSize:'14px', boxShadow:`0 4px 14px rgba(107,30,42,0.35)`,
             transition:'transform .15s',

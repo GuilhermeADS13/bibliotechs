@@ -26,9 +26,9 @@ export function Auth({ user, DA, GRAD_BTN }) {
   return (
     <button onClick={login} style={{
       background: GRAD_BTN, color: DA.cream, border: 'none',
-      borderRadius: '8px', padding: '8px 16px', fontWeight: '800',
-      fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px',
-      boxShadow: '0 2px 10px rgba(107,30,42,0.3)'
+      borderRadius: '10px', padding: '12px 28px', fontWeight: '800',
+      fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px',
+      boxShadow: '0 4px 14px rgba(107,30,42,0.35)'
     }}>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="white">
         <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
