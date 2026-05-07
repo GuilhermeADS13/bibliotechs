@@ -64,35 +64,18 @@ export function BackgroundCarousel() {
       }} />
 
       {/* ── Overlay principal: escurece o fundo sem matar a imagem ── */}
-      {/* Camada base uniforme */}
-      <div style={{
-        position: 'fixed', inset: 0, zIndex: -1, pointerEvents: 'none',
-        background: 'rgba(20, 10, 6, 0.48)',
-      }} />
-
-      {/* Vinheta radial — borda mais escura, centro respira */}
-      <div style={{
-        position: 'fixed', inset: 0, zIndex: -1, pointerEvents: 'none',
-        background: `radial-gradient(
-          ellipse 80% 70% at 50% 50%,
-          transparent            0%,
-          rgba(20,10,6, 0.25)  60%,
-          rgba(20,10,6, 0.55) 100%
-        )`,
-      }} />
-
       {/* Gradiente topo → garante header legível */}
       <div style={{
         position: 'fixed', top: 0, left: 0, right: 0,
         height: '110px', zIndex: -1, pointerEvents: 'none',
-        background: 'linear-gradient(to bottom, rgba(20,10,6,0.80) 0%, transparent 100%)',
+        background: 'linear-gradient(to bottom, rgba(44,26,20,0.88) 0%, transparent 100%)',
       }} />
 
       {/* Gradiente base → ancora o rodapé */}
       <div style={{
         position: 'fixed', bottom: 0, left: 0, right: 0,
         height: '140px', zIndex: -1, pointerEvents: 'none',
-        background: 'linear-gradient(to top, rgba(20,10,6,0.75) 0%, transparent 100%)',
+        background: 'linear-gradient(to top, rgba(44,26,20,0.78) 0%, transparent 100%)',
       }} />
 
       <style>{`

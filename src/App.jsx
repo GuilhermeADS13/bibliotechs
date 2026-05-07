@@ -24,6 +24,10 @@ const GRAD_BG       = `linear-gradient(160deg, ${DA.cream} 0%, #ede4d0 40%, #e0d
 const GRAD_BTN      = `linear-gradient(135deg, ${DA.oxblood}, ${DA.warmBurgundy}, ${DA.burntOrange})`;
 const GRAD_PROGRESS = `linear-gradient(90deg, ${DA.oxblood}, ${DA.warmBurgundy}, ${DA.mustard})`;
 const GRAD_NAV_ACT  = `linear-gradient(135deg, ${DA.copper}, ${DA.burntOrange})`;
+const GLASS_PANEL = 'rgba(245,240,224,0.85)';
+const GLASS_BORDER = '1px solid rgba(255,255,255,0.18)';
+const PANEL_SHADOW = '0 18px 60px rgba(131,84,30,0.18)';
+const WARM_SHADOW = '0 10px 30px rgba(131,84,30,0.16)';
 
 const ABAS = [
   { key:'inicio', label:'Início', emoji:'🏠' },
@@ -52,7 +56,7 @@ function FotoModal({ src, titulo, onFechar }) {
           position:'absolute', top:'-14px', right:'-14px',
           background:DA.cream, border:'none', borderRadius:'50%',
           width:'34px', height:'34px', cursor:'pointer', fontWeight:'800',
-          fontSize:'16px', color:DA.espresso, boxShadow:'0 4px 12px rgba(0,0,0,0.3)',
+          fontSize:'16px', color:DA.espresso, boxShadow:'0 4px 12px rgba(131,84,30,0.18)',
           display:'flex', alignItems:'center', justifyContent:'center',
         }}>✕</button>
       </div>
@@ -153,7 +157,7 @@ export default function App() {
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 0', gap:'12px', flexWrap:'nowrap' }}>
             {/* Logo — flexShrink:0 para nunca comprimir */}
             <button onClick={() => setAba('inicio')} style={{ background:'none', border:'none', cursor:'pointer', display:'flex', alignItems:'center', gap:'8px', padding:0, flexShrink:0 }}>
-              <div style={{ background:GRAD_BTN, borderRadius:'10px', padding:'7px 14px', fontWeight:'900', fontSize:'18px', color:DA.cream, letterSpacing:'-0.5px', boxShadow:'0 2px 10px rgba(0,0,0,0.3)', whiteSpace:'nowrap' }}>
+              <div style={{ background:GRAD_BTN, borderRadius:'10px', padding:'7px 14px', fontWeight:'900', fontSize:'18px', color:DA.cream, letterSpacing:'-0.5px', boxShadow:'0 2px 10px rgba(131,84,30,0.18)', whiteSpace:'nowrap' }}>
                 biblio<span style={{ color:DA.mustard }}>tech</span>
               </div>
             </button>
@@ -209,7 +213,7 @@ export default function App() {
                   <img
                     src={ultimoLido.fotoUsuario || ultimoLido.capa || `https://via.placeholder.com/130x185/4A2E1E/F5F0E0?text=📚`}
                     alt={ultimoLido.titulo}
-                    style={{ width:'130px', height:'185px', objectFit:'cover', borderRadius:'10px', boxShadow:'0 8px 24px rgba(0,0,0,0.5)', cursor:'pointer', display:'block' }}
+                    style={{ width:'130px', height:'185px', objectFit:'cover', borderRadius:'10px', boxShadow:'0 8px 24px rgba(131,84,30,0.22)', cursor:'pointer', display:'block' }}
                     onClick={() => {
                       const src = ultimoLido.fotoUsuario || ultimoLido.capa;
                       if (src) setFotoModal({ src, titulo: ultimoLido.titulo });
@@ -232,7 +236,7 @@ export default function App() {
                 </div>
               </div>
             ) : (
-              <div style={{ background:'rgba(245,240,224,0.93)', borderRadius:'20px', padding:'52px 48px', textAlign:'center', border:`2px dashed rgba(196,154,108,0.5)`, boxShadow:'0 8px 40px rgba(10,4,2,0.55)', backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)' }}>
+              <div style={{ background:GLASS_PANEL, borderRadius:'20px', padding:'52px 48px', textAlign:'center', border:`2px dashed rgba(196,154,108,0.5)`, boxShadow:PANEL_SHADOW, backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)' }}>
                 <div style={{ fontSize:'52px', marginBottom:'14px' }}>📚</div>
                 <p style={{ color:DA.chocolate, fontSize:'17px', fontWeight:'700', marginBottom:'6px' }}>Sua estante está vazia</p>
                 <p style={{ color:DA.warmBeige, fontSize:'14px', marginBottom:'22px' }}>Adicione seu primeiro livro para começar!</p>
@@ -245,7 +249,7 @@ export default function App() {
             <Stats lidos={lidos.length} lendo={lendoAgora.length} queroLer={queroLer.length} abandonei={abandonei.length} DA={DA} GRAD_BTN={GRAD_BTN} />
 
             {/* Meta de leitura */}
-            <div style={{ background:'rgba(245,240,224,0.93)', borderRadius:'18px', padding:'26px', boxShadow:'0 8px 40px rgba(10,4,2,0.55)', border:`1px solid rgba(196,154,108,0.4)`, backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)' }}>
+            <div style={{ background:GLASS_PANEL, borderRadius:'18px', padding:'26px', boxShadow:PANEL_SHADOW, border:`1px solid rgba(196,154,108,0.4)`, backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)' }}>
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'16px' }}>
                 <h3 style={{ fontWeight:'800', fontSize:'16px', color:DA.espresso }}>🎯 Meta de Leitura {ano}</h3>
                 <button onClick={() => setEditandoMeta(v => !v)} style={{ fontSize:'12px', color:DA.oxblood, background:'none', border:`1px solid ${DA.oxblood}`, borderRadius:'6px', padding:'4px 10px', cursor:'pointer', fontWeight:'700' }}>
@@ -272,7 +276,7 @@ export default function App() {
 
             {/* Lendo agora */}
             {lendoAgora.length > 0 && (
-              <div style={{ background:'rgba(245,240,224,0.93)', borderRadius:'18px', padding:'26px', boxShadow:'0 8px 40px rgba(10,4,2,0.55)', border:`1px solid rgba(196,154,108,0.4)`, backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)' }}>
+              <div style={{ background:GLASS_PANEL, borderRadius:'18px', padding:'26px', boxShadow:PANEL_SHADOW, border:`1px solid rgba(196,154,108,0.4)`, backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)' }}>
                 <h3 style={{ fontWeight:'800', fontSize:'16px', color:DA.espresso, marginBottom:'18px' }}>📖 Lendo Agora</h3>
                 <div style={{ display:'flex', gap:'20px', overflowX:'auto', paddingBottom:'8px' }}>
                   {lendoAgora.map(l => (
@@ -303,7 +307,7 @@ export default function App() {
             <div style={{ display:'flex', gap:'12px', marginBottom:'20px', flexWrap:'wrap', alignItems:'center' }}>
               <input type="text" placeholder="🔍 Pesquisar por título, autor ou gênero..." value={busca}
                 onChange={e => setBusca(e.target.value)}
-                style={{ flex:1, minWidth:'200px', padding:'10px 16px', borderRadius:'10px', border:`2px solid ${DA.warmBeige}`, outline:'none', fontSize:'14px', background:'rgba(245,240,224,0.95)', transition:'border-color .2s' }}
+                style={{ flex:1, minWidth:'200px', padding:'10px 16px', borderRadius:'10px', border:`2px solid ${DA.warmBeige}`, outline:'none', fontSize:'14px', background:'rgba(245,240,224,0.90)', transition:'border-color .2s' }}
                 onFocus={e => e.target.style.borderColor = DA.copper}
                 onBlur={e => e.target.style.borderColor = DA.warmBeige}
               />
@@ -327,12 +331,12 @@ export default function App() {
             </div>
 
             {loading ? (
-              <div style={{ background:'rgba(245,240,224,0.93)', borderRadius:'20px', padding:'60px 40px', textAlign:'center', boxShadow:'0 8px 40px rgba(10,4,2,0.55)', border:`1px solid rgba(196,154,108,0.4)`, backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)' }}>
+              <div style={{ background:GLASS_PANEL, borderRadius:'20px', padding:'60px 40px', textAlign:'center', boxShadow:PANEL_SHADOW, border:`1px solid rgba(196,154,108,0.4)`, backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)' }}>
                 <div style={{ fontSize:'40px', marginBottom:'14px', animation:'pulse 1.4s infinite' }}>📚</div>
                 <p style={{ fontWeight:'700', fontSize:'15px', color:DA.espresso }}>Carregando estante...</p>
               </div>
             ) : livrosFiltrados.length === 0 ? (
-              <div style={{ background:'rgba(245,240,224,0.93)', borderRadius:'20px', padding:'60px 40px', textAlign:'center', boxShadow:'0 8px 40px rgba(10,4,2,0.55)', border:`1px solid rgba(196,154,108,0.4)`, backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)' }}>
+              <div style={{ background:GLASS_PANEL, borderRadius:'20px', padding:'60px 40px', textAlign:'center', boxShadow:PANEL_SHADOW, border:`1px solid rgba(196,154,108,0.4)`, backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)' }}>
                 <div style={{ fontSize:'52px', marginBottom:'14px' }}>📭</div>
                 <p style={{ fontSize:'17px', fontWeight:'800', color:DA.espresso, marginBottom:'8px' }}>Nenhum livro encontrado</p>
                 {busca && <p style={{ fontSize:'13px', color:DA.walnut }}>Tente outro termo de busca</p>}
@@ -359,7 +363,7 @@ export default function App() {
         {/* ── ADICIONAR ── */}
         {aba === 'adicionar' && (
           <div className="page-content" style={{ maxWidth:'600px', margin:'0 auto' }}>
-            <div style={{ background:'rgba(245,240,224,0.93)', borderRadius:'20px', padding:'36px', boxShadow:'0 8px 40px rgba(10,4,2,0.55)', border:`1px solid rgba(196,154,108,0.4)`, backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)' }}>
+            <div style={{ background:GLASS_PANEL, borderRadius:'20px', padding:'36px', boxShadow:PANEL_SHADOW, border:`1px solid rgba(196,154,108,0.4)`, backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)' }}>
               <h2 style={{ fontWeight:'900', fontSize:'20px', color:DA.espresso, marginBottom:'26px' }}>📚 Adicionar à Estante</h2>
               <BookForm onSave={adicionarLivro} DA={DA} GRAD_BTN={GRAD_BTN} />
             </div>
@@ -369,7 +373,7 @@ export default function App() {
         {/* ── METAS ── */}
         {aba === 'metas' && (
           <div className="page-content" style={{ maxWidth:'700px', margin:'0 auto', display:'flex', flexDirection:'column', gap:'20px' }}>
-            <div style={{ background:'rgba(245,240,224,0.93)', borderRadius:'20px', padding:'30px', boxShadow:'0 8px 40px rgba(10,4,2,0.55)', border:`1px solid rgba(196,154,108,0.4)`, backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)' }}>
+            <div style={{ background:GLASS_PANEL, borderRadius:'20px', padding:'30px', boxShadow:PANEL_SHADOW, border:`1px solid rgba(196,154,108,0.4)`, backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)' }}>
               <h2 style={{ fontWeight:'900', fontSize:'18px', color:DA.espresso, marginBottom:'22px' }}>🎯 Meta de Leitura {ano}</h2>
               <div style={{ display:'flex', alignItems:'center', gap:'12px', marginBottom:'22px', flexWrap:'wrap' }}>
                 <span style={{ fontSize:'14px', color:DA.walnut }}>Quero ler</span>
@@ -388,7 +392,7 @@ export default function App() {
             </div>
 
             {/* Gráfico mensal */}
-            <div style={{ background:'rgba(245,240,224,0.93)', borderRadius:'20px', padding:'30px', boxShadow:'0 8px 40px rgba(10,4,2,0.55)', border:`1px solid rgba(196,154,108,0.4)`, backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)' }}>
+            <div style={{ background:GLASS_PANEL, borderRadius:'20px', padding:'30px', boxShadow:PANEL_SHADOW, border:`1px solid rgba(196,154,108,0.4)`, backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)' }}>
               <h3 style={{ fontWeight:'800', fontSize:'16px', color:DA.espresso, marginBottom:'22px' }}>📅 Leituras por Mês ({ano})</h3>
               <div style={{ display:'flex', gap:'8px', alignItems:'flex-end', height:'110px' }}>
                 {Array.from({ length:12 }, (_,i) => {
@@ -410,7 +414,7 @@ export default function App() {
 
             {/* Lista lidos no ano */}
             {lidosAno.length > 0 && (
-              <div style={{ background:'rgba(245,240,224,0.93)', borderRadius:'20px', padding:'30px', boxShadow:'0 8px 40px rgba(10,4,2,0.55)', border:`1px solid rgba(196,154,108,0.4)`, backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)' }}>
+              <div style={{ background:GLASS_PANEL, borderRadius:'20px', padding:'30px', boxShadow:PANEL_SHADOW, border:`1px solid rgba(196,154,108,0.4)`, backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)' }}>
                 <h3 style={{ fontWeight:'800', fontSize:'16px', color:DA.espresso, marginBottom:'18px' }}>✅ Lidos em {ano}</h3>
                 <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
                   {lidosAno.sort((a,b)=>new Date(b.dataTermino)-new Date(a.dataTermino)).map(l => (

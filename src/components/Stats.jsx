@@ -1,3 +1,6 @@
+const GLASS_PANEL = 'rgba(245,240,224,0.85)';
+const PANEL_SHADOW = '0 18px 60px rgba(131,84,30,0.18)';
+
 export function Stats({ lidos, lendo, queroLer, abandonei, DA, GRAD_BTN }) {
   const total = lidos + lendo + queroLer + abandonei;
   const cards = [
@@ -8,10 +11,10 @@ export function Stats({ lidos, lendo, queroLer, abandonei, DA, GRAD_BTN }) {
   ];
   return (
     <div style={{
-      background: 'rgba(245,240,224,0.93)',
+      background: GLASS_PANEL,
       borderRadius: '18px',
       padding: '26px',
-      boxShadow: '0 8px 40px rgba(10,4,2,0.55)',
+      boxShadow: PANEL_SHADOW,
       border: `1px solid rgba(196,154,108,0.4)`,
       backdropFilter: 'blur(12px)',
       WebkitBackdropFilter: 'blur(12px)',
