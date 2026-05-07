@@ -25,6 +25,7 @@ const GRAD_BTN      = `linear-gradient(135deg, ${DA.oxblood}, ${DA.warmBurgundy}
 const GRAD_PROGRESS = `linear-gradient(90deg, ${DA.oxblood}, ${DA.warmBurgundy}, ${DA.mustard})`;
 const GRAD_NAV_ACT  = `linear-gradient(135deg, ${DA.copper}, ${DA.burntOrange})`;
 const GLASS_PANEL = 'rgba(245,240,224,0.85)';
+const GLASS_PANEL_STRONG = 'rgba(245,240,224,0.94)';
 const GLASS_BORDER = '1px solid rgba(255,255,255,0.18)';
 const PANEL_SHADOW = '0 18px 60px rgba(131,84,30,0.18)';
 const WARM_SHADOW = '0 10px 30px rgba(131,84,30,0.16)';
@@ -248,10 +249,10 @@ export default function App() {
                 </div>
               </div>
             ) : (
-              <div style={{ background:GLASS_PANEL, borderRadius:'20px', padding:'52px 48px', textAlign:'center', border:`2px dashed rgba(196,154,108,0.5)`, boxShadow:PANEL_SHADOW, backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)' }}>
+              <div style={{ background:GLASS_PANEL_STRONG, borderRadius:'20px', padding:'52px 48px', textAlign:'center', border:`2px dashed rgba(196,154,108,0.5)`, boxShadow:PANEL_SHADOW, backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)' }}>
                 <div style={{ fontSize:'52px', marginBottom:'14px' }}>📚</div>
-                <p style={{ color:DA.chocolate, fontSize:'17px', fontWeight:'700', marginBottom:'6px' }}>Sua estante está vazia</p>
-                <p style={{ color:DA.warmBeige, fontSize:'14px', marginBottom:'22px' }}>Adicione seu primeiro livro para começar!</p>
+                <p style={{ color:DA.espresso, fontSize:'17px', fontWeight:'700', marginBottom:'6px' }}>Sua estante está vazia</p>
+                <p style={{ color:DA.espresso, fontSize:'14px', marginBottom:'22px', opacity:0.92 }}>Adicione seu primeiro livro para começar!</p>
                 <button onClick={() => setAba('adicionar')} style={{ ...CTA_BTN }}>
                   ➕ Adicionar Primeiro Livro
                 </button>
@@ -261,7 +262,7 @@ export default function App() {
             <Stats lidos={lidos.length} lendo={lendoAgora.length} queroLer={queroLer.length} abandonei={abandonei.length} DA={DA} GRAD_BTN={GRAD_BTN} />
 
             {/* Meta de leitura */}
-            <div style={{ background:GLASS_PANEL, borderRadius:'18px', padding:'26px', boxShadow:PANEL_SHADOW, border:`1px solid rgba(196,154,108,0.4)`, backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)' }}>
+            <div style={{ background:GLASS_PANEL_STRONG, borderRadius:'18px', padding:'26px', boxShadow:PANEL_SHADOW, border:`1px solid rgba(196,154,108,0.4)`, backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)' }}>
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'16px' }}>
                 <h3 style={{ fontWeight:'800', fontSize:'16px', color:DA.espresso }}>🎯 Meta de Leitura {ano}</h3>
                 <button onClick={() => setEditandoMeta(v => !v)} style={{ fontSize:'12px', color:DA.oxblood, background:'none', border:`1px solid ${DA.oxblood}`, borderRadius:'6px', padding:'4px 10px', cursor:'pointer', fontWeight:'700' }}>
@@ -270,13 +271,13 @@ export default function App() {
               </div>
               {editandoMeta ? (
                 <div style={{ display:'flex', alignItems:'center', gap:'12px', marginBottom:'14px', flexWrap:'wrap' }}>
-                  <span style={{ fontSize:'14px', color:DA.walnut }}>Quero ler</span>
+                  <span style={{ fontSize:'14px', color:DA.espresso }}>Quero ler</span>
                   <input type="number" min="1" max="365" value={metaAnual} onChange={e => setMetaAnual(Number(e.target.value))}
                     style={{ width:'80px', padding:'6px 10px', borderRadius:'8px', border:`2px solid ${DA.copper}`, textAlign:'center', fontWeight:'800', fontSize:'18px' }} />
-                  <span style={{ fontSize:'14px', color:DA.walnut }}>livros em {ano}</span>
+                  <span style={{ fontSize:'14px', color:DA.espresso }}>livros em {ano}</span>
                 </div>
               ) : (
-                <p style={{ fontSize:'14px', color:DA.walnut, marginBottom:'14px' }}>
+                <p style={{ fontSize:'14px', color:DA.espresso, marginBottom:'14px' }}>
                   <strong style={{ color:DA.oxblood, fontSize:'22px' }}>{lidosAno.length}</strong> de <strong>{metaAnual}</strong> livros em {ano}
                 </p>
               )}
