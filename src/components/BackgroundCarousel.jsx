@@ -7,60 +7,72 @@ const IMAGES = [
 ];
 
 export function BackgroundCarousel() {
-  const [current, setCurrent] = useState(0);
-  const [next, setNext]       = useState(1);
-  const [transitioning, setTransitioning] = useState(false);
+  const [idx, setIdx]         = useState(0);
+  const [visible, setVisible] = useState(true); // controla o fade da imagem atual
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      // Inicia a transição
-      setTransitioning(true);
+    const DISPLAY_TIME  = 7000;  // 7s exibindo a imagem
+    const FADE_DURATION = 2000;  // 2s de crossfade suave
 
-      // Após o fade terminar, avança o índice
+    const timer = setInterval(() => {
+      // 1. Inicia fade out suave
+      setVisible(false);
+
+      // 2. Após o fade terminar, troca a imagem e faz fade in
       setTimeout(() => {
-        setCurrent(c => (c + 1) % IMAGES.length);
-        setNext(c => (c + 1) % IMAGES.length);
-        setTransitioning(false);
-      }, 1200); // duração do crossfade
-    }, 5000);
+        setIdx(i => (i + 1) % IMAGES.length);
+        setVisible(true);
+      }, FADE_DURATION);
 
-    return () => clearInterval(interval);
+    }, DISPLAY_TIME + FADE_DURATION);
+
+    return () => clearInterval(timer);
   }, []);
-
-  const base = {
-    position: 'fixed',
-    inset: 0,
-    zIndex: -1,
-    backgroundSize: 'cover',
-    backgroundPosition: 'center',
-    backgroundRepeat: 'no-repeat',
-  };
 
   return (
     <>
-      {/* Camada de baixo: imagem atual */}
+      {/* Imagem de fundo com fade suave */}
+      <div
+        key={idx}
+        style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: -2,
+          backgroundImage: `url(${IMAGES[idx]})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat',
+          opacity: visible ? 1 : 0,
+          transition: 'opacity 2s ease-in-out',
+          // Ken Burns: zoom lento e suave
+          animation: 'kenburns 9s ease-in-out infinite alternate',
+        }}
+      />
+
+      {/* Overlay com gradiente Deep Autumn — opacidade equilibrada */}
+      {/* Escurece levemente a borda e mantém centro visível */}
       <div style={{
-        ...base,
-        backgroundImage: `url(${IMAGES[current]})`,
-        transition: 'opacity 1.2s ease-in-out',
-        opacity: transitioning ? 0 : 1,
+        position: 'fixed',
+        inset: 0,
+        zIndex: -1,
+        background: `
+          linear-gradient(
+            to bottom,
+            rgba(44, 26, 20, 0.55) 0%,
+            rgba(44, 26, 20, 0.30) 35%,
+            rgba(44, 26, 20, 0.30) 65%,
+            rgba(44, 26, 20, 0.60) 100%
+          )
+        `,
       }} />
 
-      {/* Camada de cima: próxima imagem, aparece durante a transição */}
-      <div style={{
-        ...base,
-        backgroundImage: `url(${IMAGES[next]})`,
-        transition: 'opacity 1.2s ease-in-out',
-        opacity: transitioning ? 1 : 0,
-      }} />
-
-      {/* Overlay escuro para manter legibilidade do conteúdo */}
-      <div style={{
-        ...base,
-        background: 'rgba(44, 26, 20, 0.72)',
-        backdropFilter: 'blur(1px)',
-        WebkitBackdropFilter: 'blur(1px)',
-      }} />
+      {/* CSS do efeito Ken Burns */}
+      <style>{`
+        @keyframes kenburns {
+          from { transform: scale(1.00) translateX(0px); }
+          to   { transform: scale(1.06) translateX(-12px); }
+        }
+      `}</style>
     </>
   );
 }
