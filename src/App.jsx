@@ -113,9 +113,12 @@ export default function App() {
   };
 
   if (authLoading) return (
-    <div style={{ minHeight:'100vh', background:GRAD_BG, display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:'12px' }}>
-      <div style={{ fontSize:'40px', animation:'pulse 1.4s ease-in-out infinite' }}>📚</div>
-      <p style={{ color:DA.walnut, fontWeight:'700', fontSize:'14px' }}>Carregando sua estante...</p>
+    <div style={{ minHeight:'100vh', background:'transparent', display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:'12px' }}>
+      <BackgroundCarousel />
+      <div style={{ background:'rgba(245,240,224,0.85)', borderRadius:'16px', padding:'32px 48px', textAlign:'center', backdropFilter:'blur(4px)' }}>
+        <div style={{ fontSize:'40px', marginBottom:'12px', animation:'pulse 1.4s ease-in-out infinite' }}>📚</div>
+        <p style={{ color:DA.walnut, fontWeight:'700', fontSize:'14px' }}>Carregando sua estante...</p>
+      </div>
     </div>
   );
 
@@ -212,7 +215,7 @@ export default function App() {
                 </div>
               </div>
             ) : (
-              <div style={{ background:'rgba(245,240,224,0.93)', borderRadius:'20px', padding:'52px 48px', textAlign:'center', border:`2px dashed ${DA.warmBeige}` }}>
+              <div style={{ background:'rgba(245,240,224,0.80)', borderRadius:'20px', padding:'52px 48px', textAlign:'center', border:`2px dashed ${DA.warmBeige}`, backdropFilter:'blur(8px)', WebkitBackdropFilter:'blur(8px)' }}>
                 <div style={{ fontSize:'52px', marginBottom:'14px' }}>📚</div>
                 <p style={{ color:DA.chocolate, fontSize:'17px', fontWeight:'700', marginBottom:'6px' }}>Sua estante está vazia</p>
                 <p style={{ color:DA.warmBeige, fontSize:'14px', marginBottom:'22px' }}>Adicione seu primeiro livro para começar!</p>
@@ -225,7 +228,7 @@ export default function App() {
             <Stats lidos={lidos.length} lendo={lendoAgora.length} queroLer={queroLer.length} abandonei={abandonei.length} DA={DA} GRAD_BTN={GRAD_BTN} />
 
             {/* Meta de leitura */}
-            <div style={{ background:'rgba(245,240,224,0.93)', borderRadius:'18px', padding:'26px', boxShadow:'0 2px 12px rgba(44,26,20,0.08)', border:`1px solid ${DA.warmBeige}` }}>
+            <div style={{ background:'rgba(245,240,224,0.80)', borderRadius:'18px', padding:'26px', boxShadow:'0 4px 20px rgba(44,26,20,0.15)', border:`1px solid ${DA.warmBeige}`, backdropFilter:'blur(8px)', WebkitBackdropFilter:'blur(8px)' }}>
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'16px' }}>
                 <h3 style={{ fontWeight:'800', fontSize:'16px', color:DA.espresso }}>🎯 Meta de Leitura {ano}</h3>
                 <button onClick={() => setEditandoMeta(v => !v)} style={{ fontSize:'12px', color:DA.oxblood, background:'none', border:`1px solid ${DA.oxblood}`, borderRadius:'6px', padding:'4px 10px', cursor:'pointer', fontWeight:'700' }}>
@@ -252,7 +255,7 @@ export default function App() {
 
             {/* Lendo agora */}
             {lendoAgora.length > 0 && (
-              <div style={{ background:'rgba(245,240,224,0.93)', borderRadius:'18px', padding:'26px', boxShadow:'0 2px 12px rgba(44,26,20,0.08)', border:`1px solid ${DA.warmBeige}` }}>
+              <div style={{ background:'rgba(245,240,224,0.80)', borderRadius:'18px', padding:'26px', boxShadow:'0 4px 20px rgba(44,26,20,0.15)', border:`1px solid ${DA.warmBeige}`, backdropFilter:'blur(8px)', WebkitBackdropFilter:'blur(8px)' }}>
                 <h3 style={{ fontWeight:'800', fontSize:'16px', color:DA.espresso, marginBottom:'18px' }}>📖 Lendo Agora</h3>
                 <div style={{ display:'flex', gap:'20px', overflowX:'auto', paddingBottom:'8px' }}>
                   {lendoAgora.map(l => (
@@ -283,7 +286,7 @@ export default function App() {
             <div style={{ display:'flex', gap:'12px', marginBottom:'20px', flexWrap:'wrap', alignItems:'center' }}>
               <input type="text" placeholder="🔍 Pesquisar por título, autor ou gênero..." value={busca}
                 onChange={e => setBusca(e.target.value)}
-                style={{ flex:1, minWidth:'200px', padding:'10px 16px', borderRadius:'10px', border:`2px solid ${DA.warmBeige}`, outline:'none', fontSize:'14px', background:'rgba(245,240,224,0.93)', transition:'border-color .2s' }}
+                style={{ flex:1, minWidth:'200px', padding:'10px 16px', borderRadius:'10px', border:`2px solid ${DA.warmBeige}`, outline:'none', fontSize:'14px', background:'rgba(245,240,224,0.80)', transition:'border-color .2s' }}
                 onFocus={e => e.target.style.borderColor = DA.copper}
                 onBlur={e => e.target.style.borderColor = DA.warmBeige}
               />
@@ -339,7 +342,7 @@ export default function App() {
         {/* ── ADICIONAR ── */}
         {aba === 'adicionar' && (
           <div className="page-content" style={{ maxWidth:'600px', margin:'0 auto' }}>
-            <div style={{ background:'rgba(245,240,224,0.93)', borderRadius:'20px', padding:'36px', boxShadow:'0 4px 20px rgba(44,26,20,0.1)', border:`1px solid ${DA.warmBeige}` }}>
+            <div style={{ background:'rgba(245,240,224,0.80)', borderRadius:'20px', padding:'36px', boxShadow:'0 4px 24px rgba(44,26,20,0.18)', border:`1px solid ${DA.warmBeige}`, backdropFilter:'blur(8px)', WebkitBackdropFilter:'blur(8px)' }}>
               <h2 style={{ fontWeight:'900', fontSize:'20px', color:DA.espresso, marginBottom:'26px' }}>📚 Adicionar à Estante</h2>
               <BookForm onSave={adicionarLivro} DA={DA} GRAD_BTN={GRAD_BTN} />
             </div>
@@ -349,7 +352,7 @@ export default function App() {
         {/* ── METAS ── */}
         {aba === 'metas' && (
           <div className="page-content" style={{ maxWidth:'700px', margin:'0 auto', display:'flex', flexDirection:'column', gap:'20px' }}>
-            <div style={{ background:'rgba(245,240,224,0.93)', borderRadius:'20px', padding:'30px', boxShadow:'0 4px 20px rgba(44,26,20,0.1)', border:`1px solid ${DA.warmBeige}` }}>
+            <div style={{ background:'rgba(245,240,224,0.80)', borderRadius:'20px', padding:'30px', boxShadow:'0 4px 24px rgba(44,26,20,0.18)', border:`1px solid ${DA.warmBeige}`, backdropFilter:'blur(8px)', WebkitBackdropFilter:'blur(8px)' }}>
               <h2 style={{ fontWeight:'900', fontSize:'18px', color:DA.espresso, marginBottom:'22px' }}>🎯 Meta de Leitura {ano}</h2>
               <div style={{ display:'flex', alignItems:'center', gap:'12px', marginBottom:'22px', flexWrap:'wrap' }}>
                 <span style={{ fontSize:'14px', color:DA.walnut }}>Quero ler</span>
@@ -368,7 +371,7 @@ export default function App() {
             </div>
 
             {/* Gráfico mensal */}
-            <div style={{ background:'rgba(245,240,224,0.93)', borderRadius:'20px', padding:'30px', boxShadow:'0 4px 20px rgba(44,26,20,0.1)', border:`1px solid ${DA.warmBeige}` }}>
+            <div style={{ background:'rgba(245,240,224,0.80)', borderRadius:'20px', padding:'30px', boxShadow:'0 4px 24px rgba(44,26,20,0.18)', border:`1px solid ${DA.warmBeige}`, backdropFilter:'blur(8px)', WebkitBackdropFilter:'blur(8px)' }}>
               <h3 style={{ fontWeight:'800', fontSize:'16px', color:DA.espresso, marginBottom:'22px' }}>📅 Leituras por Mês ({ano})</h3>
               <div style={{ display:'flex', gap:'8px', alignItems:'flex-end', height:'110px' }}>
                 {Array.from({ length:12 }, (_,i) => {
@@ -390,7 +393,7 @@ export default function App() {
 
             {/* Lista lidos no ano */}
             {lidosAno.length > 0 && (
-              <div style={{ background:'rgba(245,240,224,0.93)', borderRadius:'20px', padding:'30px', boxShadow:'0 4px 20px rgba(44,26,20,0.1)', border:`1px solid ${DA.warmBeige}` }}>
+              <div style={{ background:'rgba(245,240,224,0.80)', borderRadius:'20px', padding:'30px', boxShadow:'0 4px 24px rgba(44,26,20,0.18)', border:`1px solid ${DA.warmBeige}`, backdropFilter:'blur(8px)', WebkitBackdropFilter:'blur(8px)' }}>
                 <h3 style={{ fontWeight:'800', fontSize:'16px', color:DA.espresso, marginBottom:'18px' }}>✅ Lidos em {ano}</h3>
                 <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
                   {lidosAno.sort((a,b)=>new Date(b.dataTermino)-new Date(a.dataTermino)).map(l => (
@@ -435,3 +438,4 @@ export default function App() {
     </div>
   );
 }
+
