@@ -11,26 +11,38 @@ export function BookForm({ onSave, DA, GRAD_BTN }) {
     titulo: '', autor: '', genero: '', paginas: '',
     dataTermino: '', status: 'quero-ler', capa: '', resenha: ''
   });
+  const GOOGLE_BOOKS_URL = 'https://www.googleapis.com/books/v1/volumes';
 
   const set = (k, v) => setFormData(p => ({ ...p, [k]: v }));
 
   const buscar = async () => {
-    if (formData.titulo.length < 2) return;
+    const titulo = formData.titulo.trim();
+    const autor = formData.autor.trim();
+    const queryParts = [];
+    if (titulo.length >= 2) queryParts.push(`intitle:${titulo}`);
+    if (autor.length >= 2) queryParts.push(`inauthor:${autor}`);
+    if (!queryParts.length) return;
+
     setLoading(true);
     try {
-      const res  = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(formData.titulo)}&maxResults=5`);
+      const query = encodeURIComponent(queryParts.join('+'));
+      const res = await fetch(`${GOOGLE_BOOKS_URL}?q=${query}&maxResults=6`);
       const data = await res.json();
-      if (data.items?.length) {
-        setSugestoes(data.items.map(item => ({
-          titulo:  item.volumeInfo.title,
-          autor:   item.volumeInfo.authors?.join(', ') || 'Desconhecido',
-          genero:  item.volumeInfo.categories?.[0] || '',
-          paginas: item.volumeInfo.pageCount || '',
-          capa:    item.volumeInfo.imageLinks?.thumbnail?.replace('http:', 'https:') || ''
-        })));
-      }
-    } catch (e) { console.error(e); }
-    finally { setLoading(false); }
+      const items = data.items || [];
+
+      setSugestoes(items.map(item => ({
+        titulo:  item.volumeInfo.title || '',
+        autor:   item.volumeInfo.authors?.join(', ') || 'Desconhecido',
+        genero:  item.volumeInfo.categories?.[0] || '',
+        paginas: item.volumeInfo.pageCount || '',
+        capa:    item.volumeInfo.imageLinks?.thumbnail?.replace(/^http:/, 'https:') || ''
+      })));
+    } catch (e) {
+      console.error('Google Books search failed', e);
+      setSugestoes([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const selecionar = (s) => { setFormData(p => ({ ...p, ...s })); setSugestoes([]); };
