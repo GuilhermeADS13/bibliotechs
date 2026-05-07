@@ -173,10 +173,25 @@ export default function App() {
 
       {/* Banner sem login */}
       {!user && (
-        <div style={{ background:`${DA.mustard}1a`, borderBottom:`1px solid ${DA.mustard}33`, padding:'9px 16px', textAlign:'center' }}>
-          <span style={{ fontSize:'12px', color:'#F5F0E0', fontWeight:'600' }}>
+        <div style={{
+          background: 'rgba(20,10,6,0.82)',
+          backdropFilter: 'blur(10px)',
+          WebkitBackdropFilter: 'blur(10px)',
+          borderBottom: `1px solid rgba(196,154,108,0.30)`,
+          padding: '10px 16px',
+          textAlign: 'center',
+        }}>
+          <span style={{ fontSize:'13px', color:'rgba(245,240,224,0.95)', fontWeight:'600', letterSpacing:'0.01em' }}>
             📖 Navegando sem conta — livros salvos só neste dispositivo.{' '}
-            <button onClick={() => import('firebase/auth').then(m => m.signInWithPopup(auth))} style={{ background:'none', border:'none', color:DA.oxblood, fontWeight:'800', cursor:'pointer', textDecoration:'underline', fontSize:'12px' }}>
+            <button
+              onClick={() => { import('firebase/auth').then(({ signInWithPopup }) => { import('./firebase').then(({ provider }) => signInWithPopup(auth, provider)); }); }}
+              style={{
+                background: 'none', border: 'none',
+                color: '#C49A22',
+                fontWeight: '800', cursor: 'pointer',
+                textDecoration: 'underline', fontSize: '13px',
+                textUnderlineOffset: '3px',
+              }}>
               Entre com Google
             </button>{' '}para sincronizar em qualquer lugar.
           </span>
@@ -440,6 +455,7 @@ export default function App() {
     </div>
   );
 }
+
 
 
 
