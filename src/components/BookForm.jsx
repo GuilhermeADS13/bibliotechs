@@ -12,6 +12,7 @@ export function BookForm({ onSave, DA, GRAD_BTN }) {
     dataTermino: '', status: 'quero-ler', capa: '', resenha: ''
   });
   const GOOGLE_BOOKS_URL = 'https://www.googleapis.com/books/v1/volumes';
+  const GOOGLE_BOOKS_KEY = import.meta.env.VITE_GOOGLE_BOOKS_API_KEY || '';
 
   const set = (k, v) => setFormData(p => ({ ...p, [k]: v }));
 
@@ -26,7 +27,8 @@ export function BookForm({ onSave, DA, GRAD_BTN }) {
     setLoading(true);
     try {
       const query = encodeURIComponent(queryParts.join('+'));
-      const res = await fetch(`${GOOGLE_BOOKS_URL}?q=${query}&maxResults=6`);
+      const keyParam = GOOGLE_BOOKS_KEY ? `&key=${GOOGLE_BOOKS_KEY}` : '';
+      const res = await fetch(`${GOOGLE_BOOKS_URL}?q=${query}&maxResults=6${keyParam}`);
       const data = await res.json();
       const items = data.items || [];
 

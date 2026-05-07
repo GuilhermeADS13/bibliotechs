@@ -26,6 +26,16 @@ Gerenciador de leituras pessoal com integração com a API do Google Books.
 - Tailwind CSS
 - Google Books API
 
+## Configuração de API
+
+Se você tiver uma chave da Google Books API, crie um arquivo `.env` com o valor abaixo:
+
+```env
+VITE_GOOGLE_BOOKS_API_KEY=SuaChaveAqui
+```
+
+O projeto também já usa as variáveis de ambiente do Firebase se estiver autenticando com Google.
+
 ## Como rodar
 
 ```bash
