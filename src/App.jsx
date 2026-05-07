@@ -132,7 +132,7 @@ export default function App() {
       display:'flex', alignItems:'center', gap:'6px',
     }}>
       <span style={{ fontSize:'14px' }}>{a.emoji}</span>
-      <span className="nav-label">{a.label}</span>
+      <span className={a.key === 'estante' ? 'nav-label nav-label-long' : 'nav-label'}>{a.label}</span>
     </button>
   );
 
@@ -143,28 +143,30 @@ export default function App() {
         @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
         @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
         .page-content { animation: fadeIn .3s ease forwards; }
+        @media(max-width:900px) { .nav-label-long { display:none; } }
         @media(max-width:640px) { .nav-label { display:none; } }
       `}</style>
 
       {/* HEADER */}
       <header style={{ background:'rgba(44,26,20,0.82)', backdropFilter:'blur(16px)', WebkitBackdropFilter:'blur(16px)', borderBottom:`1px solid rgba(196,154,108,0.25)`, boxShadow:'0 4px 24px rgba(0,0,0,0.35)', position:'sticky', top:0, zIndex:100 }}>
         <div style={{ maxWidth:'1100px', margin:'0 auto', padding:'0 16px' }}>
-          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 0', gap:'10px' }}>
-            {/* Logo */}
-            <button onClick={() => setAba('inicio')} style={{ background:'none', border:'none', cursor:'pointer', display:'flex', alignItems:'center', gap:'10px', padding:0 }}>
-              <div style={{ background:GRAD_BTN, borderRadius:'10px', padding:'7px 16px', fontWeight:'900', fontSize:'20px', color:DA.cream, letterSpacing:'-0.5px', boxShadow:'0 2px 10px rgba(0,0,0,0.3)' }}>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 0', gap:'12px', flexWrap:'nowrap' }}>
+            {/* Logo — flexShrink:0 para nunca comprimir */}
+            <button onClick={() => setAba('inicio')} style={{ background:'none', border:'none', cursor:'pointer', display:'flex', alignItems:'center', gap:'8px', padding:0, flexShrink:0 }}>
+              <div style={{ background:GRAD_BTN, borderRadius:'10px', padding:'7px 14px', fontWeight:'900', fontSize:'18px', color:DA.cream, letterSpacing:'-0.5px', boxShadow:'0 2px 10px rgba(0,0,0,0.3)', whiteSpace:'nowrap' }}>
                 biblio<span style={{ color:DA.mustard }}>tech</span>
               </div>
-              <span style={{ fontSize:'11px', color:DA.camel, fontStyle:'italic', opacity:0.7 }}>Deep Autumn</span>
             </button>
 
-            {/* Nav */}
-            <nav style={{ display:'flex', gap:'4px', flexWrap:'wrap' }}>
+            {/* Nav — ocupa o espaço do meio, centralizada */}
+            <nav style={{ display:'flex', gap:'4px', flexWrap:'nowrap', flex:1, justifyContent:'center', overflow:'hidden' }}>
               {ABAS.map(a => <NavButton key={a.key} a={a} />)}
             </nav>
 
-            {/* Auth */}
-            <Auth user={user} DA={DA} GRAD_BTN={GRAD_BTN} />
+            {/* Auth — flexShrink:0 garante que nunca sai da tela */}
+            <div style={{ flexShrink:0 }}>
+              <Auth user={user} DA={DA} GRAD_BTN={GRAD_BTN} />
+            </div>
           </div>
         </div>
       </header>
@@ -438,4 +440,5 @@ export default function App() {
     </div>
   );
 }
+
 
