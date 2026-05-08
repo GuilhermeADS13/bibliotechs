@@ -20,7 +20,7 @@ export function Stats({ lidos, lendo, queroLer, abandonei, DA, GRAD_BTN }) {
       WebkitBackdropFilter: 'blur(12px)',
     }}>
       <h3 style={{ fontWeight: '800', fontSize: '16px', color: DA.espresso, marginBottom: '18px' }}>📊 Minha Estante</h3>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '12px' }}>
+      <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '12px' }}>
         {cards.map(c => (
           <div key={c.label} style={{
             background: c.bg,

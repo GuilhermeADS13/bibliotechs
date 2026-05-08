@@ -49,7 +49,7 @@ export function BookCard({ livro, DA, GRAD_BTN, onAtualizar, onRemover, onResenh
   return (
     <div
       onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => { if (!editando) setHover(false); }}
+      onMouseLeave={() => { setHover(false); setEditando(false); }}
       onClick={() => { if (!hover) setHover(true); }}
       style={{
         background: 'white',

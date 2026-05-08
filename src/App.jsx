@@ -159,10 +159,12 @@ export default function App() {
       <style>{`
         @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
         @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
         .page-content { animation: fadeIn .3s ease forwards; }
         @media(max-width:900px) { .nav-label-long { display:none; } }
         @media(max-width:640px) { .nav-label { display:none; } }
         @media(max-width:520px) { .auth-label { display:none; } .auth-btn { padding: 10px 12px !important; } }
+        @media(max-width:480px) { .stats-grid { grid-template-columns: repeat(2,1fr) !important; } }
       `}</style>
 
       {/* HEADER */}
