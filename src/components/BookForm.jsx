@@ -52,7 +52,7 @@ export function BookForm({ onSave, DA, GRAD_BTN }) {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!formData.titulo.trim()) return;
-    onSave({ ...formData, nota, fotoUsuario, id: Date.now() });
+    onSave({ ...formData, nota, fotoUsuario });
     setFormData({ titulo: '', autor: '', genero: '', paginas: '', dataTermino: '', status: 'quero-ler', capa: '', resenha: '' });
     setNota(0);
     setSugestoes([]);
@@ -180,7 +180,7 @@ export function BookForm({ onSave, DA, GRAD_BTN }) {
         </div>
         <div>
           <Label>Data de término</Label>
-          <input type="date" style={{ ...inp, cursor: 'pointer' }}
+          <input type="date" value={formData.dataTermino} style={{ ...inp, cursor: 'pointer' }}
             onChange={e => set('dataTermino', e.target.value)} onFocus={onFocus} onBlur={onBlur} />
         </div>
       </div>

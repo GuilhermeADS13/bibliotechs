@@ -162,6 +162,7 @@ export default function App() {
         .page-content { animation: fadeIn .3s ease forwards; }
         @media(max-width:900px) { .nav-label-long { display:none; } }
         @media(max-width:640px) { .nav-label { display:none; } }
+        @media(max-width:520px) { .auth-label { display:none; } .auth-btn { padding: 10px 12px !important; } }
       `}</style>
 
       {/* HEADER */}

@@ -20,6 +20,8 @@ export function BookCard({ livro, DA, GRAD_BTN, onAtualizar, onRemover, onResenh
   const [editando, setEditando]   = useState(false);
   const [mostrando, setMostrando] = useState('auto'); // 'auto' | 'usuario' | 'api'
 
+  const fechar = () => { setEditando(false); setHover(false); };
+
   const statusStyles = STATUS_STYLE(DA);
   const cor = statusStyles[livro.status] || statusStyles['quero-ler'];
 
@@ -47,7 +49,8 @@ export function BookCard({ livro, DA, GRAD_BTN, onAtualizar, onRemover, onResenh
   return (
     <div
       onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => { setHover(false); setEditando(false); }}
+      onMouseLeave={() => { if (!editando) setHover(false); }}
+      onClick={() => { if (!hover) setHover(true); }}
       style={{
         background: 'white',
         borderRadius: '16px',
@@ -130,7 +133,7 @@ export function BookCard({ livro, DA, GRAD_BTN, onAtualizar, onRemover, onResenh
         )}
 
         {/* Overlay ações */}
-        {hover && (
+        {hover && !editando && (
           <div style={{
             position: 'absolute', inset: 0,
             background: `linear-gradient(180deg, transparent 0%, ${DA.espresso}e0 60%, ${DA.oxblood}f0 100%)`,
@@ -138,7 +141,7 @@ export function BookCard({ livro, DA, GRAD_BTN, onAtualizar, onRemover, onResenh
             alignItems: 'center', justifyContent: 'flex-end',
             gap: '6px', padding: '12px',
           }}>
-            <button onClick={onResenha} style={{
+            <button onClick={e => { e.stopPropagation(); onResenha(); }} style={{
               background: GRAD_BTN, color: DA.cream, border: 'none', borderRadius: '10px',
               padding: '10px 0', fontWeight: '700', fontSize: '13px', cursor: 'pointer', width: '100%',
               boxShadow: '0 4px 14px rgba(107,30,42,0.35)', transition: 'transform .15s',
@@ -149,13 +152,13 @@ export function BookCard({ livro, DA, GRAD_BTN, onAtualizar, onRemover, onResenh
             </button>
 
             <div style={{ display: 'flex', gap: '6px', width: '100%' }}>
-              <button onClick={() => setEditando(v => !v)} style={{
+              <button onClick={e => { e.stopPropagation(); setEditando(true); }} style={{
                 flex: 1, background: 'rgba(245,240,224,0.9)', color: DA.espresso, border: 'none',
                 borderRadius: '9px', padding: '7px 0', fontWeight: '700', fontSize: '11px', cursor: 'pointer',
               }}>
                 🔄 Status
               </button>
-              <button onClick={onRemover} style={{
+              <button onClick={e => { e.stopPropagation(); onRemover(); }} style={{
                 flex: 1, background: 'transparent', color: DA.mustard,
                 border: `1px solid ${DA.mustard}88`, borderRadius: '9px',
                 padding: '7px 0', fontWeight: '700', fontSize: '11px', cursor: 'pointer',
@@ -166,18 +169,36 @@ export function BookCard({ livro, DA, GRAD_BTN, onAtualizar, onRemover, onResenh
           </div>
         )}
 
-        {/* Select status */}
-        {editando && hover && (
-          <div style={{ position: 'absolute', bottom: '70px', left: '8px', right: '8px', zIndex: 2 }}>
-            <select value={livro.status}
-              onChange={e => { onAtualizar({ status: e.target.value }); setEditando(false); }}
+        {/* Seletor de status inline — substitui o select nativo que desaparecia ao mover o mouse */}
+        {editando && (
+          <div style={{
+            position: 'absolute', inset: 0, zIndex: 3,
+            background: 'rgba(44,26,20,0.93)',
+            display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center',
+            gap: '6px', padding: '12px',
+          }}>
+            <p style={{ color: DA.cream, fontSize: '11px', fontWeight: '800', marginBottom: '2px' }}>Mudar status:</p>
+            {STATUS_OPTS.map(o => (
+              <button key={o.value}
+                onClick={e => { e.stopPropagation(); onAtualizar({ status: o.value }); fechar(); }}
+                style={{
+                  width: '100%', padding: '8px', border: 'none', borderRadius: '8px',
+                  fontWeight: '700', fontSize: '11px', cursor: 'pointer',
+                  background: livro.status === o.value ? GRAD_BTN : 'rgba(245,240,224,0.9)',
+                  color: livro.status === o.value ? DA.cream : DA.espresso,
+                }}>
+                {o.label}
+              </button>
+            ))}
+            <button onClick={e => { e.stopPropagation(); setEditando(false); }}
               style={{
-                width: '100%', padding: '8px', borderRadius: '9px',
-                border: `2px solid ${DA.copper}`, fontWeight: '700', fontSize: '12px',
-                cursor: 'pointer', background: DA.cream, color: DA.espresso,
+                background: 'transparent', border: '1px solid rgba(245,240,224,0.3)',
+                borderRadius: '8px', padding: '5px 14px', color: DA.warmBeige,
+                fontSize: '11px', cursor: 'pointer', fontWeight: '600', marginTop: '2px',
               }}>
-              {STATUS_OPTS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
+              Cancelar
+            </button>
           </div>
         )}
       </div>

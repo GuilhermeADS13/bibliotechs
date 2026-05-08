@@ -17,7 +17,8 @@ export function useLivros(user) {
     }
     const q = query(collection(db, 'livros'), where('uid', '==', user.uid));
     const unsub = onSnapshot(q, snap => {
-      setLivros(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      // id do documento Firestore sempre tem prioridade sobre qualquer campo 'id' salvo
+      setLivros(snap.docs.map(d => { const data = d.data(); delete data.id; return { id: d.id, ...data }; }));
       setLoading(false);
     });
     return () => unsub();
@@ -27,19 +28,38 @@ export function useLivros(user) {
     if (!user) localStorage.setItem('da-livros', JSON.stringify(livros));
   }, [livros, user]);
 
+  const hoje = () => new Date().toISOString().split('T')[0];
+
   const adicionar = async (livro) => {
-    if (!user) { setLivros(p => [...p, { ...livro, id: Date.now() }]); return; }
-    await addDoc(collection(db, 'livros'), { ...livro, uid: user.uid, criadoEm: serverTimestamp() });
+    // Garante dataTermino para livros lidos
+    const dataTermino = livro.dataTermino || (livro.status === 'lido' ? hoje() : '');
+    const livroFinal = { ...livro, dataTermino };
+
+    if (!user) {
+      setLivros(p => [...p, { ...livroFinal, id: Date.now() }]);
+      return;
+    }
+    // Remove campo 'id' gerado pelo client antes de salvar no Firestore
+    const { id: _ignored, ...data } = livroFinal;
+    await addDoc(collection(db, 'livros'), { ...data, uid: user.uid, criadoEm: serverTimestamp() });
   };
 
   const atualizar = async (id, dados) => {
-    if (!user) { setLivros(p => p.map(l => l.id === id ? { ...l, ...dados } : l)); return; }
-    await updateDoc(doc(db, 'livros', id), dados);
+    let dadosFinal = { ...dados };
+    // Auto-define dataTermino ao marcar como lido sem data
+    if (dados.status === 'lido') {
+      const livroAtual = livros.find(l => l.id === id);
+      if (!livroAtual?.dataTermino && !dados.dataTermino) {
+        dadosFinal.dataTermino = hoje();
+      }
+    }
+    if (!user) { setLivros(p => p.map(l => l.id === id ? { ...l, ...dadosFinal } : l)); return; }
+    await updateDoc(doc(db, 'livros', String(id)), dadosFinal);
   };
 
   const remover = async (id) => {
     if (!user) { setLivros(p => p.filter(l => l.id !== id)); return; }
-    await deleteDoc(doc(db, 'livros', id));
+    await deleteDoc(doc(db, 'livros', String(id)));
   };
 
   return { livros, loading, adicionar, atualizar, remover };
