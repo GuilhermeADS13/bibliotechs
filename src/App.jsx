@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { auth } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { useLivros } from './hooks/useLivros';
@@ -61,7 +61,6 @@ export default function App() {
   const [metaAnual, setMetaAnual]       = useState(() => Number(localStorage.getItem('da-meta') || 12));
   const [editandoMeta, setEditandoMeta] = useState(false);
   const [navMobile, setNavMobile]       = useState(false);
-  const menuRef = useRef(null);
 
   const { livros, loading, adicionar, atualizar, remover } = useLivros(user);
 
@@ -72,11 +71,13 @@ export default function App() {
 
   useEffect(() => { localStorage.setItem('da-meta', String(metaAnual)); }, [metaAnual]);
 
-  // Fecha o menu mobile ao clicar fora
+  // Fecha menu mobile ao clicar fora
   useEffect(() => {
     if (!navMobile) return;
     const handler = (e) => {
-      if (menuRef.current && !menuRef.current.contains(e.target)) setNavMobile(false);
+      if (!e.target.closest('#mobile-menu') && !e.target.closest('#hamburger-btn')) {
+        setNavMobile(false);
+      }
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
@@ -122,22 +123,16 @@ export default function App() {
     </div>
   );
 
-  const NavButton = ({ a, mobile }) => (
-    <button
-      onClick={() => { setAba(a.key); setNavMobile(false); }}
-      style={{
-        padding: mobile ? '13px 16px' : '8px 14px',
-        borderRadius:'9px', border:'none', cursor:'pointer',
-        fontWeight:'700', fontSize: mobile ? '15px' : '13px',
-        transition:'all .2s',
-        background: aba === a.key ? GRAD_NAV_ACT : (mobile ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.08)'),
-        color: aba === a.key ? DA.cream : DA.warmBeige,
-        boxShadow: aba === a.key ? '0 2px 10px rgba(0,0,0,0.3)' : 'none',
-        display:'flex', alignItems:'center', gap:'8px',
-        width: mobile ? '100%' : 'auto',
-      }}
-    >
-      <span style={{ fontSize: mobile ? '18px' : '14px' }}>{a.emoji}</span>
+  const NavButton = ({ a }) => (
+    <button onClick={() => { setAba(a.key); setNavMobile(false); }} style={{
+      padding:'8px 14px', borderRadius:'9px', border:'none', cursor:'pointer',
+      fontWeight:'700', fontSize:'13px', transition:'all .2s',
+      background: aba === a.key ? GRAD_NAV_ACT : 'rgba(255,255,255,0.08)',
+      color: aba === a.key ? DA.cream : DA.warmBeige,
+      boxShadow: aba === a.key ? '0 2px 10px rgba(0,0,0,0.3)' : 'none',
+      display:'flex', alignItems:'center', gap:'6px',
+    }}>
+      <span style={{ fontSize:'14px' }}>{a.emoji}</span>
       <span>{a.label}</span>
     </button>
   );
@@ -151,63 +146,75 @@ export default function App() {
         @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
         @keyframes slideDown { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:translateY(0)} }
         .page-content { animation: fadeIn .3s ease forwards; }
-        .mobile-menu { animation: slideDown .2s ease forwards; }
-        @media(max-width:480px) { .stats-grid { grid-template-columns: repeat(2,1fr) !important; } }
-        /* Responsivo: desktop mostra nav, mobile mostra hamburguer */
         .nav-desktop { display: flex !important; }
         .hamburger-btn { display: none !important; }
-        @media(max-width:640px) {
+        .mobile-menu { animation: slideDown .2s ease forwards; }
+        @media(max-width:768px) {
           .nav-desktop { display: none !important; }
           .hamburger-btn { display: flex !important; }
         }
+        @media(max-width:520px) { .auth-label { display:none; } .auth-btn { padding: 10px 12px !important; } }
+        @media(max-width:480px) { .stats-grid { grid-template-columns: repeat(2,1fr) !important; } }
       `}</style>
 
       {/* HEADER */}
-      <header ref={menuRef} style={{ background:'rgba(44,26,20,0.82)', backdropFilter:'blur(16px)', WebkitBackdropFilter:'blur(16px)', borderBottom:'1px solid rgba(196,154,108,0.25)', boxShadow:'0 4px 24px rgba(0,0,0,0.35)', position:'sticky', top:0, zIndex:200 }}>
+      <header style={{ background:'rgba(44,26,20,0.92)', backdropFilter:'blur(16px)', WebkitBackdropFilter:'blur(16px)', borderBottom:`1px solid rgba(196,154,108,0.25)`, boxShadow:'0 4px 24px rgba(0,0,0,0.35)', position:'sticky', top:0, zIndex:200 }}>
         <div style={{ maxWidth:'1100px', margin:'0 auto', padding:'0 16px' }}>
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 0', gap:'12px' }}>
 
             {/* Logo */}
-            <button onClick={() => setAba('inicio')} style={{ background:'none', border:'none', cursor:'pointer', display:'flex', alignItems:'center', padding:0, flexShrink:0 }}>
+            <button onClick={() => setAba('inicio')} style={{ background:'none', border:'none', cursor:'pointer', display:'flex', alignItems:'center', gap:'8px', padding:0, flexShrink:0 }}>
               <div style={{ background:GRAD_BTN, borderRadius:'10px', padding:'7px 14px', fontWeight:'900', fontSize:'18px', color:DA.cream, letterSpacing:'-0.5px', boxShadow:'0 2px 10px rgba(131,84,30,0.18)', whiteSpace:'nowrap' }}>
                 biblio<span style={{ color:DA.mustard }}>tech</span>
               </div>
             </button>
 
-            {/* Nav desktop */}
-            <nav className="nav-desktop" style={{ gap:'4px', flex:1, justifyContent:'center', flexWrap:'nowrap' }}>
+            {/* Nav Desktop */}
+            <nav className="nav-desktop" style={{ gap:'4px', flex:1, justifyContent:'center' }}>
               {ABAS.map(a => <NavButton key={a.key} a={a} />)}
             </nav>
 
-            {/* Auth + hamburguer */}
-            <div style={{ display:'flex', alignItems:'center', gap:'8px', flexShrink:0 }}>
+            {/* Auth + Hamburguer */}
+            <div style={{ display:'flex', alignItems:'center', gap:'10px', flexShrink:0 }}>
               <Auth user={user} DA={DA} GRAD_BTN={GRAD_BTN} />
               <button
+                id="hamburger-btn"
                 className="hamburger-btn"
                 onClick={() => setNavMobile(v => !v)}
-                aria-label="Abrir menu"
                 style={{
                   background: navMobile ? GRAD_NAV_ACT : 'rgba(255,255,255,0.10)',
-                  border:'1px solid rgba(196,154,108,0.35)', borderRadius:'9px',
-                  padding:'9px 10px', cursor:'pointer',
-                  alignItems:'center', justifyContent:'center',
-                  flexDirection:'column', gap:'4px', transition:'background .2s',
+                  border: '1px solid rgba(196,154,108,0.3)', borderRadius:'9px',
+                  width:'42px', height:'42px', cursor:'pointer',
+                  flexDirection:'column', alignItems:'center', justifyContent:'center', gap:'5px',
+                  transition:'background .2s',
                 }}
               >
-                <span style={{ display:'block', width:'18px', height:'2px', background:DA.warmBeige, borderRadius:'2px', transition:'all .25s', transform: navMobile ? 'rotate(45deg) translate(4px,4px)' : 'none' }} />
-                <span style={{ display:'block', width:'18px', height:'2px', background:DA.warmBeige, borderRadius:'2px', transition:'all .25s', opacity: navMobile ? 0 : 1 }} />
-                <span style={{ display:'block', width:'18px', height:'2px', background:DA.warmBeige, borderRadius:'2px', transition:'all .25s', transform: navMobile ? 'rotate(-45deg) translate(4px,-4px)' : 'none' }} />
+                <span style={{ display:'block', width:'20px', height:'2px', background:DA.cream, borderRadius:'2px', transition:'transform .2s', transform: navMobile ? 'rotate(45deg) translate(5px,5px)' : 'none' }} />
+                <span style={{ display:'block', width:'20px', height:'2px', background:DA.cream, borderRadius:'2px', opacity: navMobile ? 0 : 1, transition:'opacity .2s' }} />
+                <span style={{ display:'block', width:'20px', height:'2px', background:DA.cream, borderRadius:'2px', transition:'transform .2s', transform: navMobile ? 'rotate(-45deg) translate(5px,-5px)' : 'none' }} />
               </button>
             </div>
           </div>
         </div>
 
-        {/* Dropdown mobile */}
+        {/* Menu mobile dropdown */}
         {navMobile && (
-          <div className="mobile-menu" style={{ background:'rgba(28,12,6,0.97)', backdropFilter:'blur(20px)', WebkitBackdropFilter:'blur(20px)', borderTop:'1px solid rgba(196,154,108,0.18)', padding:'10px 16px 14px' }}>
-            <div style={{ maxWidth:'1100px', margin:'0 auto', display:'flex', flexDirection:'column', gap:'6px' }}>
-              {ABAS.map(a => <NavButton key={a.key} a={a} mobile />)}
-            </div>
+          <div id="mobile-menu" className="mobile-menu" style={{ background:'rgba(25,10,5,0.97)', backdropFilter:'blur(20px)', WebkitBackdropFilter:'blur(20px)', borderTop:'1px solid rgba(196,154,108,0.2)', boxShadow:'0 8px 32px rgba(0,0,0,0.4)' }}>
+            {ABAS.map((a, i) => (
+              <button key={a.key} onClick={() => { setAba(a.key); setNavMobile(false); }} style={{
+                width:'100%', padding:'16px 24px', border:'none', cursor:'pointer',
+                fontWeight:'700', fontSize:'16px', display:'flex', alignItems:'center', gap:'14px',
+                transition:'background .15s', fontFamily:"'Segoe UI', sans-serif",
+                background: aba === a.key ? 'rgba(181,98,42,0.2)' : 'transparent',
+                color: aba === a.key ? DA.mustard : DA.warmBeige,
+                borderBottom: i < ABAS.length - 1 ? '1px solid rgba(196,154,108,0.1)' : 'none',
+                borderLeft: aba === a.key ? `3px solid ${DA.copper}` : '3px solid transparent',
+                textAlign:'left',
+              }}>
+                <span style={{ fontSize:'22px' }}>{a.emoji}</span>
+                <span>{a.label}</span>
+              </button>
+            ))}
           </div>
         )}
       </header>
@@ -215,7 +222,7 @@ export default function App() {
       {/* Banner sem login */}
       {!user && (
         <div style={{ background:'rgba(20,10,6,0.82)', backdropFilter:'blur(10px)', WebkitBackdropFilter:'blur(10px)', borderBottom:'1px solid rgba(196,154,108,0.30)', padding:'10px 16px', textAlign:'center' }}>
-          <span style={{ fontSize:'13px', color:'rgba(245,240,224,0.95)', fontWeight:'600', letterSpacing:'0.01em' }}>
+          <span style={{ fontSize:'13px', color:'rgba(245,240,224,0.95)', fontWeight:'600' }}>
             📖 Navegando sem conta — livros salvos só neste dispositivo.{' '}
             <button onClick={() => { import('firebase/auth').then(({ signInWithPopup }) => { import('./firebase').then(({ provider }) => signInWithPopup(auth, provider)); }); }}
               style={{ background:'none', border:'none', color:'#C49A22', fontWeight:'800', cursor:'pointer', textDecoration:'underline', fontSize:'13px', textUnderlineOffset:'3px' }}>
@@ -227,7 +234,7 @@ export default function App() {
 
       <div style={{ maxWidth:'1100px', margin:'0 auto', padding:'24px 16px' }}>
 
-        {/* ── INÍCIO ── */}
+        {/* INÍCIO */}
         {aba === 'inicio' && (
           <div className="page-content" style={{ display:'flex', flexDirection:'column', gap:'20px' }}>
             {ultimoLido ? (
@@ -236,14 +243,20 @@ export default function App() {
                   <img src={ultimoLido.fotoUsuario || ultimoLido.capa || 'https://via.placeholder.com/130x185/4A2E1E/F5F0E0?text=📚'} alt={ultimoLido.titulo}
                     style={{ width:'130px', height:'185px', objectFit:'cover', borderRadius:'10px', boxShadow:'0 8px 24px rgba(131,84,30,0.22)', cursor:'pointer', display:'block' }}
                     onClick={() => { const src = ultimoLido.fotoUsuario || ultimoLido.capa; if (src) setFotoModal({ src, titulo: ultimoLido.titulo }); }} />
-                  {ultimoLido.fotoUsuario && <div style={{ position:'absolute', bottom:'-8px', right:'-8px', background:DA.copper, borderRadius:'50%', width:'26px', height:'26px', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'13px', border:'2px solid white', boxShadow:'0 2px 8px rgba(0,0,0,0.3)' }}>📷</div>}
+                  {ultimoLido.fotoUsuario && (
+                    <div style={{ position:'absolute', bottom:'-8px', right:'-8px', background:DA.copper, borderRadius:'50%', width:'26px', height:'26px', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'13px', border:'2px solid white', boxShadow:'0 2px 8px rgba(0,0,0,0.3)' }}>📷</div>
+                  )}
                 </div>
                 <div>
                   <p style={{ color:DA.mustard, fontSize:'11px', fontWeight:'800', textTransform:'uppercase', letterSpacing:'3px', marginBottom:'10px' }}>📖 Último livro lido</p>
                   <h2 style={{ fontSize:'28px', fontWeight:'900', color:DA.cream, marginBottom:'6px', lineHeight:1.2 }}>{ultimoLido.titulo}</h2>
                   <p style={{ color:DA.warmBeige, fontSize:'15px', marginBottom:'14px', opacity:0.85 }}>{ultimoLido.autor}</p>
                   <StarRating rating={ultimoLido.nota} DA={DA} />
-                  {ultimoLido.resenha && <p style={{ marginTop:'14px', color:DA.warmBeige, fontSize:'14px', fontStyle:'italic', maxWidth:'420px', opacity:0.8, lineHeight:1.6 }}>"{ultimoLido.resenha.slice(0,160)}{ultimoLido.resenha.length > 160 ? '…' : ''}"</p>}
+                  {ultimoLido.resenha && (
+                    <p style={{ marginTop:'14px', color:DA.warmBeige, fontSize:'14px', fontStyle:'italic', maxWidth:'420px', opacity:0.8, lineHeight:1.6 }}>
+                      "{ultimoLido.resenha.slice(0,160)}{ultimoLido.resenha.length > 160 ? '…' : ''}"
+                    </p>
+                  )}
                 </div>
               </div>
             ) : (
@@ -268,11 +281,14 @@ export default function App() {
               {editandoMeta ? (
                 <div style={{ display:'flex', alignItems:'center', gap:'12px', marginBottom:'14px', flexWrap:'wrap' }}>
                   <span style={{ fontSize:'14px', color:DA.espresso }}>Quero ler</span>
-                  <input type="number" min="1" max="365" value={metaAnual} onChange={e => setMetaAnual(Number(e.target.value))} style={{ width:'80px', padding:'6px 10px', borderRadius:'8px', border:`2px solid ${DA.copper}`, textAlign:'center', fontWeight:'800', fontSize:'18px' }} />
+                  <input type="number" min="1" max="365" value={metaAnual} onChange={e => setMetaAnual(Number(e.target.value))}
+                    style={{ width:'80px', padding:'6px 10px', borderRadius:'8px', border:`2px solid ${DA.copper}`, textAlign:'center', fontWeight:'800', fontSize:'18px' }} />
                   <span style={{ fontSize:'14px', color:DA.espresso }}>livros em {ano}</span>
                 </div>
               ) : (
-                <p style={{ fontSize:'14px', color:DA.espresso, marginBottom:'14px' }}><strong style={{ color:DA.oxblood, fontSize:'22px' }}>{lidosAno.length}</strong> de <strong>{metaAnual}</strong> livros em {ano}</p>
+                <p style={{ fontSize:'14px', color:DA.espresso, marginBottom:'14px' }}>
+                  <strong style={{ color:DA.oxblood, fontSize:'22px' }}>{lidosAno.length}</strong> de <strong>{metaAnual}</strong> livros em {ano}
+                </p>
               )}
               <div style={{ background:`${DA.warmBeige}55`, borderRadius:'999px', height:'16px', overflow:'hidden' }}>
                 <div style={{ background:GRAD_PROGRESS, height:'100%', borderRadius:'999px', width:`${pctMeta}%`, transition:'width .6s ease' }} />
@@ -286,10 +302,14 @@ export default function App() {
                 <h3 style={{ fontWeight:'800', fontSize:'16px', color:DA.espresso, marginBottom:'18px' }}>📖 Lendo Agora</h3>
                 <div style={{ display:'flex', gap:'20px', overflowX:'auto', paddingBottom:'8px' }}>
                   {lendoAgora.map(l => (
-                    <div key={l.id} style={{ minWidth:'100px', textAlign:'center', cursor:'pointer' }} onClick={() => { const src = l.fotoUsuario || l.capa; if (src) setFotoModal({ src, titulo: l.titulo }); }}>
+                    <div key={l.id} style={{ minWidth:'100px', textAlign:'center', cursor:'pointer' }}
+                      onClick={() => { const src = l.fotoUsuario || l.capa; if (src) setFotoModal({ src, titulo: l.titulo }); }}>
                       <div style={{ position:'relative', display:'inline-block' }}>
-                        <img src={l.fotoUsuario || l.capa || 'https://via.placeholder.com/100x140/4A2E1E/F5F0E0?text=📚'} alt={l.titulo} style={{ width:'100px', height:'140px', objectFit:'cover', borderRadius:'8px', boxShadow:'0 6px 16px rgba(44,26,20,0.2)', display:'block' }} />
-                        {l.fotoUsuario && <div style={{ position:'absolute', bottom:'-5px', right:'-5px', background:DA.copper, borderRadius:'50%', width:'18px', height:'18px', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'9px', border:'2px solid white' }}>📷</div>}
+                        <img src={l.fotoUsuario || l.capa || 'https://via.placeholder.com/100x140/4A2E1E/F5F0E0?text=📚'} alt={l.titulo}
+                          style={{ width:'100px', height:'140px', objectFit:'cover', borderRadius:'8px', boxShadow:'0 6px 16px rgba(44,26,20,0.2)', display:'block' }} />
+                        {l.fotoUsuario && (
+                          <div style={{ position:'absolute', bottom:'-5px', right:'-5px', background:DA.copper, borderRadius:'50%', width:'18px', height:'18px', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'9px', border:'2px solid white' }}>📷</div>
+                        )}
                       </div>
                       <p style={{ fontSize:'11px', fontWeight:'700', marginTop:'8px', color:DA.chocolate, maxWidth:'100px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{l.titulo}</p>
                     </div>
@@ -300,68 +320,92 @@ export default function App() {
           </div>
         )}
 
-        {/* ── ESTANTE ── */}
+        {/* ESTANTE */}
         {aba === 'estante' && (
           <div className="page-content">
             <div style={{ display:'flex', gap:'12px', marginBottom:'20px', flexWrap:'wrap', alignItems:'center' }}>
-              <input type="text" placeholder="🔍 Pesquisar por título, autor ou gênero..." value={busca} onChange={e => setBusca(e.target.value)}
+              <input type="text" placeholder="🔍 Pesquisar por título, autor ou gênero..." value={busca}
+                onChange={e => setBusca(e.target.value)}
                 style={{ flex:1, minWidth:'200px', padding:'10px 16px', borderRadius:'10px', border:`2px solid ${DA.warmBeige}`, outline:'none', fontSize:'14px', background:'rgba(245,240,224,0.90)', transition:'border-color .2s' }}
-                onFocus={e => e.target.style.borderColor = DA.copper} onBlur={e => e.target.style.borderColor = DA.warmBeige} />
+                onFocus={e => e.target.style.borderColor = DA.copper}
+                onBlur={e => e.target.style.borderColor = DA.warmBeige}
+              />
               <div style={{ display:'flex', gap:'6px', flexWrap:'wrap' }}>
-                {[{key:'todos',label:'Todos'},{key:'lendo',label:'📖 Lendo'},{key:'lido',label:'✅ Lidos'},{key:'quero-ler',label:'⏳ Quero Ler'},{key:'abandonei',label:'❌ Abandonei'}].map(f => (
-                  <button key={f.key} onClick={() => setFiltroStatus(f.key)} style={{ padding:'8px 14px', borderRadius:'8px', border:'none', cursor:'pointer', fontWeight:'700', fontSize:'12px', transition:'all .2s', background: filtroStatus === f.key ? GRAD_BTN : 'rgba(245,240,224,0.90)', color: filtroStatus === f.key ? DA.cream : DA.espresso, boxShadow: filtroStatus === f.key ? '0 2px 8px rgba(107,30,42,0.3)' : 'none' }}>{f.label}</button>
+                {[
+                  {key:'todos',label:'Todos'},
+                  {key:'lendo',label:'📖 Lendo'},
+                  {key:'lido',label:'✅ Lidos'},
+                  {key:'quero-ler',label:'⏳ Quero Ler'},
+                  {key:'abandonei',label:'❌ Abandonei'},
+                ].map(f => (
+                  <button key={f.key} onClick={() => setFiltroStatus(f.key)} style={{
+                    padding:'8px 14px', borderRadius:'8px', border:'none', cursor:'pointer',
+                    fontWeight:'700', fontSize:'12px', transition:'all .2s',
+                    background: filtroStatus === f.key ? GRAD_BTN : 'rgba(245,240,224,0.85)',
+                    color: filtroStatus === f.key ? DA.cream : DA.espresso,
+                    boxShadow: filtroStatus === f.key ? '0 2px 8px rgba(107,30,42,0.25)' : 'none',
+                  }}>{f.label}</button>
                 ))}
               </div>
             </div>
+
             {loading ? (
-              <div style={{ textAlign:'center', padding:'60px', color:DA.warmBeige, fontSize:'16px' }}>Carregando...</div>
+              <div style={{ textAlign:'center', padding:'60px', color:DA.warmBeige, fontSize:'14px', fontWeight:'600' }}>
+                <div style={{ fontSize:'32px', marginBottom:'12px', display:'inline-block', animation:'spin 1s linear infinite' }}>⚙️</div>
+                <p>Carregando livros...</p>
+              </div>
             ) : livrosFiltrados.length === 0 ? (
-              <div style={{ background:GLASS_PANEL_STRONG, borderRadius:'20px', padding:'52px 48px', textAlign:'center', border:'2px dashed rgba(196,154,108,0.5)', boxShadow:PANEL_SHADOW, backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)' }}>
-                <div style={{ fontSize:'44px', marginBottom:'12px' }}>🔍</div>
-                <p style={{ color:DA.espresso, fontWeight:'700', fontSize:'16px', marginBottom:'8px' }}>Nenhum livro encontrado</p>
-                <p style={{ color:DA.espresso, fontSize:'14px', opacity:0.8 }}>{busca ? 'Tente outra busca' : 'Adicione seu primeiro livro!'}</p>
-                {!busca && <button onClick={() => setAba('adicionar')} style={{ ...CTA_BTN, marginTop:'20px' }}>➕ Adicionar Livro</button>}
+              <div style={{ background:GLASS_PANEL_STRONG, borderRadius:'20px', padding:'52px 32px', textAlign:'center', border:'2px dashed rgba(196,154,108,0.5)', backdropFilter:'blur(12px)' }}>
+                <div style={{ fontSize:'48px', marginBottom:'14px' }}>🔍</div>
+                <p style={{ color:DA.espresso, fontSize:'16px', fontWeight:'700', marginBottom:'8px' }}>Nenhum livro encontrado</p>
+                <p style={{ color:DA.warmBeige, fontSize:'14px', marginBottom:'22px' }}>{busca ? `Nenhum resultado para "${busca}"` : 'Sua estante está vazia'}</p>
+                <button onClick={() => setAba('adicionar')} style={{ ...CTA_BTN }}>➕ Adicionar Livro</button>
               </div>
             ) : (
               <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(280px, 1fr))', gap:'16px' }}>
                 {livrosFiltrados.map(l => (
-                  <BookCard key={l.id} livro={l} DA={DA} GRAD_BTN={GRAD_BTN} onAtualizar={atualizarLivro} onRemover={removerLivro} onResenha={() => setModalResenha(l)} onFoto={(src) => setFotoModal({ src, titulo: l.titulo })} />
+                  <BookCard key={l.id} livro={l} DA={DA} GRAD_BTN={GRAD_BTN}
+                    onAtualizar={atualizarLivro} onRemover={removerLivro}
+                    onResenha={() => setModalResenha(l)}
+                    onFoto={(src) => setFotoModal({ src, titulo: l.titulo })}
+                  />
                 ))}
               </div>
             )}
           </div>
         )}
 
-        {/* ── ADICIONAR ── */}
+        {/* ADICIONAR */}
         {aba === 'adicionar' && (
-          <div className="page-content" style={{ maxWidth:'680px', margin:'0 auto' }}>
-            <div style={{ background:GLASS_PANEL_STRONG, borderRadius:'20px', padding:'32px', boxShadow:PANEL_SHADOW, border:'1px solid rgba(196,154,108,0.4)', backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)' }}>
+          <div className="page-content">
+            <div style={{ background:GLASS_PANEL_STRONG, borderRadius:'20px', padding:'32px', boxShadow:PANEL_SHADOW, border:'1px solid rgba(196,154,108,0.4)', backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)', maxWidth:'640px', margin:'0 auto' }}>
               <h2 style={{ fontWeight:'900', fontSize:'20px', color:DA.espresso, marginBottom:'24px' }}>➕ Adicionar Livro</h2>
               <BookForm onSave={adicionarLivro} DA={DA} GRAD_BTN={GRAD_BTN} />
             </div>
           </div>
         )}
 
-        {/* ── METAS ── */}
+        {/* METAS */}
         {aba === 'metas' && (
           <div className="page-content" style={{ display:'flex', flexDirection:'column', gap:'20px' }}>
             <div style={{ background:GLASS_PANEL_STRONG, borderRadius:'20px', padding:'30px', boxShadow:PANEL_SHADOW, border:'1px solid rgba(196,154,108,0.4)', backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)' }}>
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px' }}>
-                <h2 style={{ fontWeight:'900', fontSize:'20px', color:DA.espresso }}>🎯 Meta de Leitura {ano}</h2>
-                <button onClick={() => setEditandoMeta(v => !v)} style={{ fontSize:'13px', color:DA.oxblood, background:'none', border:`1.5px solid ${DA.oxblood}`, borderRadius:'8px', padding:'6px 14px', cursor:'pointer', fontWeight:'700' }}>{editandoMeta ? '✓ Salvar' : '✏️ Editar Meta'}</button>
+                <h3 style={{ fontWeight:'800', fontSize:'18px', color:DA.espresso }}>🎯 Meta de Leitura {ano}</h3>
+                <button onClick={() => setEditandoMeta(v => !v)} style={{ fontSize:'13px', color:DA.oxblood, background:'none', border:`1px solid ${DA.oxblood}`, borderRadius:'8px', padding:'6px 14px', cursor:'pointer', fontWeight:'700' }}>
+                  {editandoMeta ? '✓ Salvar' : '✏️ Editar meta'}
+                </button>
               </div>
               {editandoMeta && (
                 <div style={{ display:'flex', alignItems:'center', gap:'12px', marginBottom:'20px', flexWrap:'wrap' }}>
                   <span style={{ fontSize:'14px', color:DA.espresso }}>Quero ler</span>
-                  <input type="number" min="1" max="365" value={metaAnual} onChange={e => setMetaAnual(Number(e.target.value))} style={{ width:'80px', padding:'6px 10px', borderRadius:'8px', border:`2px solid ${DA.copper}`, textAlign:'center', fontWeight:'800', fontSize:'18px' }} />
+                  <input type="number" min="1" max="365" value={metaAnual} onChange={e => setMetaAnual(Number(e.target.value))}
+                    style={{ width:'80px', padding:'6px 10px', borderRadius:'8px', border:`2px solid ${DA.copper}`, textAlign:'center', fontWeight:'800', fontSize:'18px' }} />
                   <span style={{ fontSize:'14px', color:DA.espresso }}>livros em {ano}</span>
                 </div>
               )}
-              <div style={{ display:'flex', gap:'24px', marginBottom:'20px', flexWrap:'wrap' }}>
-                <div style={{ textAlign:'center' }}><p style={{ fontSize:'36px', fontWeight:'900', color:DA.oxblood }}>{lidosAno.length}</p><p style={{ fontSize:'12px', color:DA.warmBeige, fontWeight:'700' }}>lidos em {ano}</p></div>
-                <div style={{ textAlign:'center' }}><p style={{ fontSize:'36px', fontWeight:'900', color:DA.mustard }}>{metaAnual}</p><p style={{ fontSize:'12px', color:DA.warmBeige, fontWeight:'700' }}>meta</p></div>
-                <div style={{ textAlign:'center' }}><p style={{ fontSize:'36px', fontWeight:'900', color:DA.forestGreen }}>{Math.max(0, metaAnual - lidosAno.length)}</p><p style={{ fontSize:'12px', color:DA.warmBeige, fontWeight:'700' }}>restantes</p></div>
-                <div style={{ textAlign:'center' }}><p style={{ fontSize:'36px', fontWeight:'900', color:DA.copper }}>{pctMeta}%</p><p style={{ fontSize:'12px', color:DA.warmBeige, fontWeight:'700' }}>concluído</p></div>
+              <div style={{ display:'flex', alignItems:'baseline', gap:'8px', marginBottom:'16px' }}>
+                <span style={{ fontSize:'48px', fontWeight:'900', color:DA.oxblood, lineHeight:1 }}>{lidosAno.length}</span>
+                <span style={{ fontSize:'20px', color:DA.warmBeige, fontWeight:'600' }}>/ {metaAnual} livros</span>
               </div>
               <div style={{ background:`${DA.warmBeige}55`, borderRadius:'999px', height:'22px', overflow:'hidden', marginBottom:'8px' }}>
                 <div style={{ background:GRAD_PROGRESS, height:'100%', borderRadius:'999px', width:`${pctMeta}%`, transition:'width .6s ease', display:'flex', alignItems:'center', justifyContent:'flex-end', paddingRight:'10px' }}>
@@ -373,7 +417,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* Gráfico mensal */}
             <div style={{ background:GLASS_PANEL, borderRadius:'20px', padding:'30px', boxShadow:PANEL_SHADOW, border:'1px solid rgba(196,154,108,0.4)', backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)' }}>
               <h3 style={{ fontWeight:'800', fontSize:'16px', color:DA.espresso, marginBottom:'22px' }}>📅 Leituras por Mês ({ano})</h3>
               <div style={{ display:'flex', gap:'8px', alignItems:'flex-end', height:'110px' }}>
@@ -400,9 +443,13 @@ export default function App() {
                 <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
                   {lidosAno.sort((a,b)=>new Date(b.dataTermino)-new Date(a.dataTermino)).map(l => (
                     <div key={l.id} style={{ display:'flex', alignItems:'center', gap:'14px', padding:'12px', borderRadius:'12px', background:DA.cream }}>
-                      <div style={{ position:'relative', flexShrink:0, cursor:'pointer' }} onClick={() => { const src = l.fotoUsuario||l.capa; if(src) setFotoModal({src,titulo:l.titulo}); }}>
-                        <img src={l.fotoUsuario||l.capa||'https://via.placeholder.com/40x56/4A2E1E/F5F0E0?text=📚'} alt={l.titulo} style={{ width:'40px', height:'56px', objectFit:'cover', borderRadius:'5px', display:'block' }} />
-                        {l.fotoUsuario && <div style={{ position:'absolute', bottom:'-4px', right:'-4px', background:DA.copper, borderRadius:'50%', width:'14px', height:'14px', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'7px', border:'1px solid white' }}>📷</div>}
+                      <div style={{ position:'relative', flexShrink:0, cursor:'pointer' }}
+                        onClick={() => { const src = l.fotoUsuario||l.capa; if(src) setFotoModal({src,titulo:l.titulo}); }}>
+                        <img src={l.fotoUsuario||l.capa||'https://via.placeholder.com/40x56/4A2E1E/F5F0E0?text=📚'} alt={l.titulo}
+                          style={{ width:'40px', height:'56px', objectFit:'cover', borderRadius:'5px', display:'block' }} />
+                        {l.fotoUsuario && (
+                          <div style={{ position:'absolute', bottom:'-4px', right:'-4px', background:DA.copper, borderRadius:'50%', width:'14px', height:'14px', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'7px', border:'1px solid white' }}>📷</div>
+                        )}
                       </div>
                       <div style={{ flex:1, minWidth:0 }}>
                         <p style={{ fontWeight:'800', fontSize:'14px', color:DA.espresso, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{l.titulo}</p>
@@ -418,8 +465,12 @@ export default function App() {
         )}
       </div>
 
-      {modalResenha && <ResenhaModal livro={modalResenha} DA={DA} GRAD_BTN={GRAD_BTN} onSalvar={salvarResenha} onFechar={() => setModalResenha(null)} />}
-      {fotoModal && <FotoModal src={fotoModal.src} titulo={fotoModal.titulo} onFechar={() => setFotoModal(null)} />}
+      {modalResenha && (
+        <ResenhaModal livro={modalResenha} DA={DA} GRAD_BTN={GRAD_BTN} onSalvar={salvarResenha} onFechar={() => setModalResenha(null)} />
+      )}
+      {fotoModal && (
+        <FotoModal src={fotoModal.src} titulo={fotoModal.titulo} onFechar={() => setFotoModal(null)} />
+      )}
     </div>
   );
 }

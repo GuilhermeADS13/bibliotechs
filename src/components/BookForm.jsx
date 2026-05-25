@@ -3,14 +3,16 @@ import { StarRating } from './StarRating';
 import { PhotoUpload } from './PhotoUpload';
 
 export function BookForm({ onSave, DA, GRAD_BTN }) {
-  const [loading, setLoading]     = useState(false);
-  const [nota, setNota]           = useState(0);
-  const [sugestoes, setSugestoes] = useState([]);
+  const [loading, setLoading]         = useState(false);
+  const [nota, setNota]               = useState(0);
+  const [sugestoes, setSugestoes]     = useState([]);
+  const [erro, setErro]               = useState('');
   const [fotoUsuario, setFotoUsuario] = useState(null);
-  const [formData, setFormData]   = useState({
+  const [formData, setFormData]       = useState({
     titulo: '', autor: '', genero: '', paginas: '',
     dataTermino: '', status: 'quero-ler', capa: '', resenha: ''
   });
+
   const GOOGLE_BOOKS_URL = 'https://www.googleapis.com/books/v1/volumes';
   const GOOGLE_BOOKS_KEY = import.meta.env.VITE_GOOGLE_BOOKS_API_KEY || '';
 
@@ -18,36 +20,55 @@ export function BookForm({ onSave, DA, GRAD_BTN }) {
 
   const buscar = async () => {
     const titulo = formData.titulo.trim();
-    const autor = formData.autor.trim();
+    const autor  = formData.autor.trim();
+
     const queryParts = [];
     if (titulo.length >= 2) queryParts.push(`intitle:${titulo}`);
-    if (autor.length >= 2) queryParts.push(`inauthor:${autor}`);
+    if (autor.length >= 2)  queryParts.push(`inauthor:${autor}`);
     if (!queryParts.length) return;
 
     setLoading(true);
+    setErro('');
+    setSugestoes([]);
+
     try {
-      const query = encodeURIComponent(queryParts.join('+'));
+      // Monta a URL manualmente — a Google Books API recebe q= com espaços como +
+      const q = queryParts.join('+');
       const keyParam = GOOGLE_BOOKS_KEY ? `&key=${GOOGLE_BOOKS_KEY}` : '';
-      const res = await fetch(`${GOOGLE_BOOKS_URL}?q=${query}&maxResults=6${keyParam}`);
-      const data = await res.json();
+      const url = `${GOOGLE_BOOKS_URL}?q=${encodeURIComponent(q)}&maxResults=6&langRestrict=pt${keyParam}`;
+
+      const res  = await fetch(url);
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        const msg = errData?.error?.message || `Erro ${res.status}`;
+        throw new Error(msg);
+      }
+
+      const data  = await res.json();
       const items = data.items || [];
+
+      if (items.length === 0) {
+        setErro('Nenhum livro encontrado. Tente outro título.');
+        return;
+      }
 
       setSugestoes(items.map(item => ({
         titulo:  item.volumeInfo.title || '',
         autor:   item.volumeInfo.authors?.join(', ') || 'Desconhecido',
         genero:  item.volumeInfo.categories?.[0] || '',
         paginas: item.volumeInfo.pageCount || '',
-        capa:    item.volumeInfo.imageLinks?.thumbnail?.replace(/^http:/, 'https:') || ''
+        capa:    item.volumeInfo.imageLinks?.thumbnail?.replace(/^http:/, 'https:') || '',
       })));
     } catch (e) {
       console.error('Google Books search failed', e);
-      setSugestoes([]);
+      setErro(`Erro ao buscar: ${e.message}`);
     } finally {
       setLoading(false);
     }
   };
 
-  const selecionar = (s) => { setFormData(p => ({ ...p, ...s })); setSugestoes([]); };
+  const selecionar = (s) => { setFormData(p => ({ ...p, ...s })); setSugestoes([]); setErro(''); };
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -56,6 +77,7 @@ export function BookForm({ onSave, DA, GRAD_BTN }) {
     setFormData({ titulo: '', autor: '', genero: '', paginas: '', dataTermino: '', status: 'quero-ler', capa: '', resenha: '' });
     setNota(0);
     setSugestoes([]);
+    setErro('');
     setFotoUsuario(null);
   };
 
@@ -94,17 +116,24 @@ export function BookForm({ onSave, DA, GRAD_BTN }) {
             onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), buscar())}
             onFocus={onFocus} onBlur={onBlur}
           />
-          <button type="button" onClick={buscar} style={{
+          <button type="button" onClick={buscar} disabled={loading} style={{
             background: GRAD_BTN, color: DA?.cream, border: 'none', borderRadius: '10px',
-            padding: '12px 28px', fontWeight: '800', cursor: 'pointer', fontSize: '14px',
-            boxShadow: `0 4px 14px rgba(107,30,42,0.35)`, whiteSpace: 'nowrap',
-            transition: 'transform .15s',
+            padding: '12px 20px', fontWeight: '800', cursor: loading ? 'wait' : 'pointer', fontSize: '14px',
+            boxShadow: '0 4px 14px rgba(107,30,42,0.35)', whiteSpace: 'nowrap',
+            transition: 'transform .15s', opacity: loading ? 0.7 : 1,
           }}
-            onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.03)'}
+            onMouseEnter={e => { if (!loading) e.currentTarget.style.transform = 'scale(1.03)'; }}
             onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}>
-            {loading ? '⏳' : '🔍 Buscar'}
+            {loading ? '⏳ Buscando...' : '🔍 Buscar'}
           </button>
         </div>
+
+        {/* Mensagem de erro */}
+        {erro && (
+          <div style={{ marginTop:'8px', padding:'10px 14px', background:'#fff0f0', border:'1px solid #ffcccc', borderRadius:'8px', fontSize:'13px', color:'#c0392b', fontWeight:'600' }}>
+            ⚠️ {erro}
+          </div>
+        )}
 
         {/* Sugestões */}
         {sugestoes.length > 0 && (
@@ -149,12 +178,7 @@ export function BookForm({ onSave, DA, GRAD_BTN }) {
       )}
 
       {/* Upload foto do usuário */}
-      <PhotoUpload
-        value={fotoUsuario}
-        onChange={setFotoUsuario}
-        DA={DA}
-        label="Sua foto do livro físico"
-      />
+      <PhotoUpload value={fotoUsuario} onChange={setFotoUsuario} DA={DA} label="Sua foto do livro físico" />
 
       {/* Campos info */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
@@ -186,10 +210,7 @@ export function BookForm({ onSave, DA, GRAD_BTN }) {
       </div>
 
       {/* Avaliação */}
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: '16px', padding: '14px',
-        borderRadius: '12px', background: DA?.cream, border: `2px solid ${DA?.warmBeige}`,
-      }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '14px', borderRadius: '12px', background: DA?.cream, border: `2px solid ${DA?.warmBeige}` }}>
         <span style={{ fontWeight: '800', fontSize: '13px', color: DA?.espresso, whiteSpace: 'nowrap' }}>Sua nota:</span>
         <StarRating rating={nota} setRating={setNota} interactive={true} DA={DA} />
         {nota > 0 && <span style={{ fontSize: '12px', color: DA?.warmBeige, fontWeight: '600' }}>{nota}/5</span>}
@@ -211,12 +232,12 @@ export function BookForm({ onSave, DA, GRAD_BTN }) {
       <button type="submit" style={{
         background: GRAD_BTN, color: DA?.cream, padding: '15px', borderRadius: '13px',
         border: 'none', fontWeight: '900', fontSize: '15px', cursor: 'pointer',
-        letterSpacing: '0.5px', boxShadow: `0 6px 20px rgba(107,30,42,0.35)`,
+        letterSpacing: '0.5px', boxShadow: '0 6px 20px rgba(107,30,42,0.35)',
         transition: 'transform .15s, box-shadow .15s',
       }}
-        onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.02)'; e.currentTarget.style.boxShadow = `0 8px 28px rgba(107,30,42,0.45)`; }}
-        onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = `0 6px 20px rgba(107,30,42,0.35)`; }}>
-        📚 ADICIONAR À ESTANTE
+        onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.02)'; e.currentTarget.style.boxShadow = '0 8px 28px rgba(107,30,42,0.45)'; }}
+        onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(107,30,42,0.35)'; }}>
+        💾 Salvar na Estante
       </button>
     </form>
   );
