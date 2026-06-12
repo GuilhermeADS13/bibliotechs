@@ -55,10 +55,25 @@ export function LoveStories({ onFechar }) {
   const avancar = () => { if (idx + 1 >= total) setFase('fim'); else setIdx(idx + 1); };
   const voltar  = () => setIdx(i => Math.max(0, i - 1));
 
+  const ytComando = (func, args = []) => {
+    const win = ytRef.current?.contentWindow;
+    if (win) win.postMessage(JSON.stringify({ event: 'command', func, args }), '*');
+  };
+
+  // Pausa a música na tela final
+  useEffect(() => {
+    if (fase !== 'fim') return;
+    ytComando('pauseVideo');
+    audioRef.current?.pause();
+  }, [fase]);
+
   const iniciar = () => {
     setIdx(0);
     setPausado(false);
     setFase('stories');
+    // recomeça a música do ponto configurado (no 1º início o iframe ainda não existe; o autoplay cuida)
+    ytComando('seekTo', [LOVE_CONFIG.inicioSegundos || 0, true]);
+    ytComando('playVideo');
     const a = audioRef.current;
     if (a) { a.currentTime = 0; a.play().catch(() => {}); }
   };
