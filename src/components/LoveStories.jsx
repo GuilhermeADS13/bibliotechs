@@ -285,13 +285,16 @@ export function LoveStories({ onFechar }) {
         <iframe
           ref={ytRef}
           title="Nossa música 🎵"
-          src={`https://www.youtube.com/embed/${LOVE_CONFIG.youtubeId}?autoplay=1&playsinline=1&loop=1&playlist=${LOVE_CONFIG.youtubeId}&enablejsapi=1&rel=0&modestbranding=1`}
+          src={`https://www.youtube.com/embed/${LOVE_CONFIG.youtubeId}?autoplay=1&playsinline=1&loop=1&playlist=${LOVE_CONFIG.youtubeId}&start=${LOVE_CONFIG.inicioSegundos || 0}&enablejsapi=1&rel=0&modestbranding=1&controls=0`}
           allow="autoplay; encrypted-media"
           style={{
-            position: 'absolute', right: '12px', bottom: '118px', zIndex: 8,
-            width: '200px', height: '112px', border: 'none', borderRadius: '12px',
-            boxShadow: '0 8px 28px rgba(0,0,0,0.55)', opacity: 0.95,
+            position: 'absolute', right: '10px', bottom: '112px', zIndex: 8,
+            width: '128px', height: '72px', border: 'none', borderRadius: '10px',
+            boxShadow: '0 6px 20px rgba(0,0,0,0.5)', opacity: 0.55,
+            transition: 'opacity .2s',
           }}
+          onMouseEnter={e => e.target.style.opacity = 0.95}
+          onMouseLeave={e => e.target.style.opacity = 0.55}
         />
       )}
 

@@ -19,5 +19,6 @@ export const LOVE_CONFIG = {
   perfilFoto: '/love/perfil.jpg',  // foto de perfil redonda (estilo Instagram)
   musica: '/love/musica.mp3',      // alternativa: mp3 local em public/love/musica.mp3 (usado só se youtubeId for vazio)
   youtubeId: 'YQjehm01HOA',        // música via player oficial do YouTube (id do vídeo)
+  inicioSegundos: 150,             // música começa em 2:30
   duracaoSlide: 6000,              // duração de cada foto (ms)
 };
