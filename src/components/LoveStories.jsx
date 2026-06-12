@@ -295,13 +295,15 @@ export function LoveStories({ onFechar }) {
         ))}
       </div>
 
-      {/* Música via player oficial do YouTube — monta após o toque na intro (gesto libera o autoplay) */}
-      {usaYoutube && fase !== 'intro' && (
+      {/* Música via player oficial do YouTube — fica montado desde a intro (escondido atrás dela);
+          o toque em "começar" manda playVideo dentro do gesto, o que libera o som no celular */}
+      {usaYoutube && (
         <iframe
           ref={ytRef}
           title="Nossa música 🎵"
           src={`https://www.youtube.com/embed/${LOVE_CONFIG.youtubeId}?autoplay=1&playsinline=1&loop=1&playlist=${LOVE_CONFIG.youtubeId}&start=${LOVE_CONFIG.inicioSegundos || 0}&enablejsapi=1&rel=0&modestbranding=1&controls=0`}
           allow="autoplay; encrypted-media"
+          onLoad={() => ytRef.current?.contentWindow?.postMessage(JSON.stringify({ event: 'listening', id: 1, channel: 'widget' }), '*')}
           style={{
             position: 'absolute', right: '10px', bottom: '112px', zIndex: 8,
             width: '128px', height: '72px', border: 'none', borderRadius: '10px',
