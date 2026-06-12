@@ -9,6 +9,7 @@ import { BookCard } from './components/BookCard';
 import { Stats } from './components/Stats';
 import { ResenhaModal } from './components/ResenhaModal';
 import { BackgroundCarousel } from './components/BackgroundCarousel';
+import { LoveStories } from './components/LoveStories';
 
 const DA = {
   mustard:'#C49A22', burntOrange:'#C4612A', brickRed:'#9E3D2E', oxblood:'#6B1E2A',
@@ -36,6 +37,7 @@ const ABAS = [
   { key:'estante', label:'Minha Estante', emoji:'📚' },
   { key:'adicionar', label:'Adicionar', emoji:'➕' },
   { key:'metas', label:'Metas', emoji:'🎯' },
+  { key:'love', label:'I ❤️ YOU', emoji:'💝', special:true },
 ];
 
 function FotoModal({ src, titulo, onFechar }) {
@@ -127,12 +129,12 @@ export default function App() {
     <button onClick={() => { setAba(a.key); setNavMobile(false); }} style={{
       padding:'8px 14px', borderRadius:'9px', border:'none', cursor:'pointer',
       fontWeight:'700', fontSize:'13px', transition:'all .2s',
-      background: aba === a.key ? GRAD_NAV_ACT : 'rgba(255,255,255,0.08)',
-      color: aba === a.key ? DA.cream : DA.warmBeige,
-      boxShadow: aba === a.key ? '0 2px 10px rgba(0,0,0,0.3)' : 'none',
+      background: a.special ? 'linear-gradient(135deg, #FF2D78, #C2185B)' : (aba === a.key ? GRAD_NAV_ACT : 'rgba(255,255,255,0.08)'),
+      color: a.special ? '#fff' : (aba === a.key ? DA.cream : DA.warmBeige),
+      boxShadow: a.special ? '0 2px 14px rgba(255,45,120,0.5)' : (aba === a.key ? '0 2px 10px rgba(0,0,0,0.3)' : 'none'),
       display:'flex', alignItems:'center', gap:'6px',
     }}>
-      <span style={{ fontSize:'14px' }}>{a.emoji}</span>
+      <span className={a.special ? 'heartbeat' : undefined} style={{ fontSize:'14px' }}>{a.emoji}</span>
       <span>{a.label}</span>
     </button>
   );
@@ -153,6 +155,8 @@ export default function App() {
           .nav-desktop { display: none !important; }
           .hamburger-btn { display: flex !important; }
         }
+        @keyframes heartbeat { 0%,100%{transform:scale(1)} 25%{transform:scale(1.3)} 50%{transform:scale(1.05)} 75%{transform:scale(1.25)} }
+        .heartbeat { animation: heartbeat 1.4s ease-in-out infinite; display:inline-block; }
         @media(max-width:520px) { .auth-label { display:none; } .auth-btn { padding: 10px 12px !important; } }
         @media(max-width:480px) { .stats-grid { grid-template-columns: repeat(2,1fr) !important; } }
       `}</style>
@@ -465,6 +469,10 @@ export default function App() {
         )}
       </div>
 
+      {/* Modo I ❤️ YOU — stories de Dia dos Namorados */}
+      {aba === 'love' && <LoveStories onFechar={() => setAba('inicio')} />}
+
+      {/* Modal de resenha */}
       {modalResenha && (
         <ResenhaModal livro={modalResenha} DA={DA} GRAD_BTN={GRAD_BTN} onSalvar={salvarResenha} onFechar={() => setModalResenha(null)} />
       )}
