@@ -54,12 +54,22 @@ export function useLivros(user) {
       }
     }
     if (!user) { setLivros(p => p.map(l => l.id === id ? { ...l, ...dadosFinal } : l)); return; }
-    await updateDoc(doc(db, 'livros', String(id)), dadosFinal);
+    try {
+      await updateDoc(doc(db, 'livros', String(id)), dadosFinal);
+    } catch (e) {
+      console.error('Erro ao atualizar livro:', e);
+      alert('Não foi possível atualizar o livro. Tente novamente.');
+    }
   };
 
   const remover = async (id) => {
     if (!user) { setLivros(p => p.filter(l => l.id !== id)); return; }
-    await deleteDoc(doc(db, 'livros', String(id)));
+    try {
+      await deleteDoc(doc(db, 'livros', String(id)));
+    } catch (e) {
+      console.error('Erro ao remover livro:', e);
+      alert('Não foi possível remover o livro. Tente novamente.');
+    }
   };
 
   return { livros, loading, adicionar, atualizar, remover };

@@ -369,7 +369,7 @@ export default function App() {
               <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(280px, 1fr))', gap:'16px' }}>
                 {livrosFiltrados.map(l => (
                   <BookCard key={l.id} livro={l} DA={DA} GRAD_BTN={GRAD_BTN}
-                    onAtualizar={atualizarLivro} onRemover={removerLivro}
+                    onAtualizar={(d) => atualizarLivro(l.id, d)} onRemover={() => removerLivro(l.id)}
                     onResenha={() => setModalResenha(l)}
                     onFoto={(src) => setFotoModal({ src, titulo: l.titulo })}
                   />
