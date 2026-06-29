@@ -10,6 +10,8 @@ import { Stats } from './components/Stats';
 import { ResenhaModal } from './components/ResenhaModal';
 import { BackgroundCarousel } from './components/BackgroundCarousel';
 import { LoveStories } from './components/LoveStories';
+import { loginGoogle, completeRedirectLogin } from './login';
+import { bookPlaceholder } from './placeholder';
 
 const DA = {
   mustard:'#C49A22', burntOrange:'#C4612A', brickRed:'#9E3D2E', oxblood:'#6B1E2A',
@@ -67,6 +69,7 @@ export default function App() {
   const { livros, loading, adicionar, atualizar, remover } = useLivros(user);
 
   useEffect(() => {
+    completeRedirectLogin();
     const unsub = onAuthStateChanged(auth, u => { setUser(u); setAuthLoading(false); });
     return () => unsub();
   }, []);
@@ -228,7 +231,7 @@ export default function App() {
         <div style={{ background:'rgba(20,10,6,0.82)', backdropFilter:'blur(10px)', WebkitBackdropFilter:'blur(10px)', borderBottom:'1px solid rgba(196,154,108,0.30)', padding:'10px 16px', textAlign:'center' }}>
           <span style={{ fontSize:'13px', color:'rgba(245,240,224,0.95)', fontWeight:'600' }}>
             📖 Navegando sem conta — livros salvos só neste dispositivo.{' '}
-            <button onClick={() => { import('firebase/auth').then(({ signInWithPopup }) => { import('./firebase').then(({ provider }) => signInWithPopup(auth, provider)); }); }}
+            <button onClick={() => loginGoogle()}
               style={{ background:'none', border:'none', color:'#C49A22', fontWeight:'800', cursor:'pointer', textDecoration:'underline', fontSize:'13px', textUnderlineOffset:'3px' }}>
               Entre com Google
             </button>{' '}para sincronizar em qualquer lugar.
@@ -244,7 +247,7 @@ export default function App() {
             {ultimoLido ? (
               <div style={{ background:GRAD_HERO, borderRadius:'20px', padding:'36px', display:'flex', alignItems:'center', gap:'36px', flexWrap:'wrap', boxShadow:'0 12px 40px rgba(107,30,42,0.35)', border:`1px solid ${DA.warmBurgundy}` }}>
                 <div style={{ position:'relative', flexShrink:0 }}>
-                  <img src={ultimoLido.fotoUsuario || ultimoLido.capa || 'https://via.placeholder.com/130x185/4A2E1E/F5F0E0?text=📚'} alt={ultimoLido.titulo}
+                  <img src={ultimoLido.fotoUsuario || ultimoLido.capa || bookPlaceholder(130, 185)} alt={ultimoLido.titulo}
                     style={{ width:'130px', height:'185px', objectFit:'cover', borderRadius:'10px', boxShadow:'0 8px 24px rgba(131,84,30,0.22)', cursor:'pointer', display:'block' }}
                     onClick={() => { const src = ultimoLido.fotoUsuario || ultimoLido.capa; if (src) setFotoModal({ src, titulo: ultimoLido.titulo }); }} />
                   {ultimoLido.fotoUsuario && (
@@ -309,7 +312,7 @@ export default function App() {
                     <div key={l.id} style={{ minWidth:'100px', textAlign:'center', cursor:'pointer' }}
                       onClick={() => { const src = l.fotoUsuario || l.capa; if (src) setFotoModal({ src, titulo: l.titulo }); }}>
                       <div style={{ position:'relative', display:'inline-block' }}>
-                        <img src={l.fotoUsuario || l.capa || 'https://via.placeholder.com/100x140/4A2E1E/F5F0E0?text=📚'} alt={l.titulo}
+                        <img src={l.fotoUsuario || l.capa || bookPlaceholder(100, 140)} alt={l.titulo}
                           style={{ width:'100px', height:'140px', objectFit:'cover', borderRadius:'8px', boxShadow:'0 6px 16px rgba(44,26,20,0.2)', display:'block' }} />
                         {l.fotoUsuario && (
                           <div style={{ position:'absolute', bottom:'-5px', right:'-5px', background:DA.copper, borderRadius:'50%', width:'18px', height:'18px', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'9px', border:'2px solid white' }}>📷</div>
@@ -449,7 +452,7 @@ export default function App() {
                     <div key={l.id} style={{ display:'flex', alignItems:'center', gap:'14px', padding:'12px', borderRadius:'12px', background:DA.cream }}>
                       <div style={{ position:'relative', flexShrink:0, cursor:'pointer' }}
                         onClick={() => { const src = l.fotoUsuario||l.capa; if(src) setFotoModal({src,titulo:l.titulo}); }}>
-                        <img src={l.fotoUsuario||l.capa||'https://via.placeholder.com/40x56/4A2E1E/F5F0E0?text=📚'} alt={l.titulo}
+                        <img src={l.fotoUsuario||l.capa||bookPlaceholder(40, 56)} alt={l.titulo}
                           style={{ width:'40px', height:'56px', objectFit:'cover', borderRadius:'5px', display:'block' }} />
                         {l.fotoUsuario && (
                           <div style={{ position:'absolute', bottom:'-4px', right:'-4px', background:DA.copper, borderRadius:'50%', width:'14px', height:'14px', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'7px', border:'1px solid white' }}>📷</div>

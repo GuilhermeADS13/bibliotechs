@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { StarRating } from './StarRating';
+import { bookPlaceholder } from '../placeholder';
 
 const STATUS_OPTS = [
   { value: 'lendo',     label: '📖 Lendo' },
@@ -34,7 +35,7 @@ export function BookCard({ livro, DA, GRAD_BTN, onAtualizar, onRemover, onResenh
     mostrando === 'api'     ? (livro.capa || livro.fotoUsuario) :
     /* auto */               (livro.fotoUsuario || livro.capa);
 
-  const placeholder = `https://via.placeholder.com/160x220/4A2E1E/F5F0E0?text=📚`;
+  const placeholder = bookPlaceholder(160, 220);
 
   const toggleFoto = (e) => {
     e.stopPropagation();

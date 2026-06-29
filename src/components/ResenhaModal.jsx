@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { StarRating } from './StarRating';
 import { PhotoUpload } from './PhotoUpload';
+import { bookPlaceholder } from '../placeholder';
 
 export function ResenhaModal({ livro, DA, GRAD_BTN, onSalvar, onFechar }) {
   const [resenha, setResenha]         = useState(livro.resenha || '');
@@ -9,7 +10,7 @@ export function ResenhaModal({ livro, DA, GRAD_BTN, onSalvar, onFechar }) {
   const [abaFoto, setAbaFoto]         = useState(false); // toggle seção de foto
 
   const imgExibida = livro.fotoUsuario || livro.capa;
-  const placeholder = `https://via.placeholder.com/70x100/4A2E1E/F5F0E0?text=📚`;
+  const placeholder = bookPlaceholder(70, 100);
 
   return (
     <div style={{

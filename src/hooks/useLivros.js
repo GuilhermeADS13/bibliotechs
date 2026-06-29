@@ -5,6 +5,25 @@ import {
   addDoc, updateDoc, deleteDoc, doc, serverTimestamp
 } from 'firebase/firestore';
 
+// Move livros salvos sem conta (localStorage) para o Firestore quando o usuário loga.
+// Remove do localStorage ANTES de enviar para evitar migração duplicada (StrictMode/reentrância).
+async function migrarLocaisParaFirestore(user) {
+  if (!user) return;
+  let locais = [];
+  try { locais = JSON.parse(localStorage.getItem('da-livros') || '[]'); } catch {}
+  if (!Array.isArray(locais) || locais.length === 0) return;
+  localStorage.removeItem('da-livros');
+  try {
+    for (const l of locais) {
+      const { id: _ignored, ...data } = l;
+      await addDoc(collection(db, 'livros'), { ...data, uid: user.uid, criadoEm: serverTimestamp() });
+    }
+  } catch (e) {
+    console.error('Falha ao migrar livros locais para a conta:', e);
+    try { localStorage.setItem('da-livros', JSON.stringify(locais)); } catch {}
+  }
+}
+
 export function useLivros(user) {
   const [livros, setLivros]   = useState([]);
   const [loading, setLoading] = useState(true);
@@ -15,12 +34,23 @@ export function useLivros(user) {
       setLoading(false);
       return;
     }
+    // Migra livros adicionados sem conta (localStorage) para o Firestore no primeiro login
+    migrarLocaisParaFirestore(user);
+
     const q = query(collection(db, 'livros'), where('uid', '==', user.uid));
-    const unsub = onSnapshot(q, snap => {
-      // id do documento Firestore sempre tem prioridade sobre qualquer campo 'id' salvo
-      setLivros(snap.docs.map(d => { const data = d.data(); delete data.id; return { id: d.id, ...data }; }));
-      setLoading(false);
-    });
+    const unsub = onSnapshot(
+      q,
+      snap => {
+        // id do documento Firestore sempre tem prioridade sobre qualquer campo 'id' salvo
+        setLivros(snap.docs.map(d => { const data = d.data(); delete data.id; return { id: d.id, ...data }; }));
+        setLoading(false);
+      },
+      err => {
+        // Sem isto, uma falha no listener deixaria o app preso em "Carregando..."
+        console.error('Erro ao carregar livros do Firestore:', err);
+        setLoading(false);
+      }
+    );
     return () => unsub();
   }, [user]);
 

@@ -4,7 +4,8 @@ service cloud.firestore {
     match /livros/{livroId} {
       allow read, write: if request.auth != null
                          && request.auth.uid == resource.data.uid;
-      allow create: if request.auth != null;
+      allow create: if request.auth != null
+                    && request.resource.data.uid == request.auth.uid;
     }
   }
 }

@@ -1,9 +1,10 @@
 import React from 'react';
-import { auth, provider } from '../firebase';
-import { signInWithPopup, signOut } from 'firebase/auth';
+import { auth } from '../firebase';
+import { signOut } from 'firebase/auth';
+import { loginGoogle } from '../login';
 
 export function Auth({ user, DA, GRAD_BTN }) {
-  const login  = () => signInWithPopup(auth, provider);
+  const login  = () => loginGoogle();
   const logout = () => signOut(auth);
 
   if (user) {
