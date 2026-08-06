@@ -5,7 +5,7 @@ export function LiteraryAgent({ livros, DA, GRAD_BTN }) {
     {
       id: 1,
       tipo: 'bot',
-      texto: 'Olá! Sou seu Agente Literário 📚✨ Estou aqui para explorar sua estante, dar recomendações inteligentes e ajudar você a descobrir conexões entre seus livros. O que gostaria de saber sobre sua leitura?',
+      texto: 'Saudações. Sou seu Crítico Literário Analítico 🧐. Minha função não é apenas catalogar, mas dissecar sua estante com rigor. Estou pronto para fornecer resumos estruturados e análises profundas sobre suas leituras. O que vamos analisar hoje?',
       timestamp: new Date()
     }
   ]);
@@ -41,53 +41,41 @@ export function LiteraryAgent({ livros, DA, GRAD_BTN }) {
     return stats;
   };
 
-  // Simular resposta do agente (em produção, seria uma chamada à API do Gemma 4)
+  // Simular resposta do agente com tom CRÍTICO e ANALÍTICO
   const gerarRespostaAgente = async (pergunta) => {
     const contexto = prepararContextoEstante();
-    
-    // Exemplos de padrões de resposta baseados na pergunta
     const perguntaLower = pergunta.toLowerCase();
-    
     let resposta = '';
 
-    if (perguntaLower.includes('recomend') || perguntaLower.includes('próximo')) {
-      const generosMaisLidos = contexto.generos.slice(0, 2).join(', ');
-      resposta = `Com base na sua estante, você tem uma forte preferência por ${generosMaisLidos || 'ficção'}. Considerando seus últimos livros lidos e suas notas, recomendo explorar autores que combinam esses gêneros com narrativas envolventes. Você já leu algo de autores que exploram temas similares aos seus favoritos?`;
-    } else if (perguntaLower.includes('estatístic') || perguntaLower.includes('quantos')) {
-      resposta = `Sua estante tem ${contexto.totalLivros} livros no total! 📊 Você já leu ${contexto.lidos} livros, está lendo ${contexto.lendo} no momento, tem ${contexto.queroLer} na fila e abandonou ${contexto.abandonei}. Que ritmo de leitura impressionante!`;
-    } else if (perguntaLower.includes('gênero') || perguntaLower.includes('tipo')) {
-      const generos = contexto.generos.slice(0, 5).join(', ');
-      resposta = `Você tem uma diversidade interessante! Seus principais gêneros incluem: ${generos || 'variados'}. Isso mostra um leitor eclético com curiosidade por diferentes perspectivas e narrativas.`;
-    } else if (perguntaLower.includes('favorit') || perguntaLower.includes('melhor')) {
-      const livrosMelhoresNotas = livros
-        .filter(l => l.nota >= 4)
-        .sort((a, b) => b.nota - a.nota)
-        .slice(0, 3);
-      if (livrosMelhoresNotas.length > 0) {
-        const titulos = livrosMelhoresNotas.map(l => `"${l.titulo}" (${l.nota}/5)`).join(', ');
-        resposta = `Seus favoritos parecem ser: ${titulos}. Esses livros receberam as melhores notas! Há padrões interessantes neles que poderiam guiar futuras recomendações.`;
-      } else {
-        resposta = `Ainda não há livros com notas altas na sua estante. Continue lendo e avaliando — suas preferências se tornarão mais claras!`;
-      }
-    } else if (perguntaLower.includes('conexão') || perguntaLower.includes('relação')) {
-      const autoresComMuitosLivros = contexto.autores.filter(a => 
-        livros.filter(l => l.autor === a).length > 1
+    // FUNCIONALIDADE: Resumo Automático
+    if (perguntaLower.includes('resumo') || perguntaLower.includes('resumir')) {
+      const livroParaResumir = livros.find(l => 
+        perguntaLower.includes(l.titulo.toLowerCase()) || 
+        (l.autor && perguntaLower.includes(l.autor.toLowerCase()))
       );
-      if (autoresComMuitosLivros.length > 0) {
-        resposta = `Você é fã de ${autoresComMuitosLivros.join(', ')}! Esses autores aparecem múltiplas vezes na sua estante, o que sugere uma conexão temática ou estilística que você aprecia.`;
+
+      if (livroParaResumir) {
+        resposta = `### Análise Sintética: "${livroParaResumir.titulo}"\n\n` +
+          `**Visão Geral:** Esta obra de ${livroParaResumir.autor || 'autor desconhecido'} insere-se no gênero ${livroParaResumir.genero || 'não especificado'}. \n\n` +
+          `**Resumo Analítico:** O texto explora a dialética entre seus temas centrais, apresentando uma narrativa que desafia a percepção do leitor sobre o gênero. Sob uma lente crítica, a estrutura da obra sugere uma tentativa de romper com tropos convencionais, embora sua eficácia dependa da profundidade da sua resenha pessoal.\n\n` +
+          `**Veredito do Crítico:** Você atribuiu uma nota ${livroParaResumir.nota}/5. Do ponto de vista técnico, essa avaliação indica que a obra ${livroParaResumir.nota >= 4 ? 'alcançou uma excelência formal notável' : 'apresenta falhas estruturais ou narrativas que limitaram seu impacto'}.`;
       } else {
-        resposta = `Você tem uma estante muito diversa com autores únicos. Isso é ótimo para explorar diferentes perspectivas! Gostaria de descobrir autores que combinam estilos que você já apreciou?`;
+        resposta = `Você solicitou um resumo, mas não identifiquei uma obra específica da sua estante na sua mensagem. Por favor, especifique o título do livro que deseja que eu disseque.`;
       }
-    } else if (perguntaLower.includes('próxim') || perguntaLower.includes('lendo agora')) {
-      const lendoAgora = livros.filter(l => l.status === 'lendo');
-      if (lendoAgora.length > 0) {
-        const titulos = lendoAgora.map(l => `"${l.titulo}" de ${l.autor}`).join(' e ');
-        resposta = `Você está lendo ${titulos}. Que emocionante! Como está sendo a experiência? Gostaria de explorar temas similares para depois?`;
-      } else {
-        resposta = `Você não está lendo nada no momento. Que tal começar algo novo? Posso ajudar a escolher baseado em seus favoritos anteriores!`;
-      }
-    } else {
-      resposta = `Que pergunta interessante! 🤔 Com base na sua estante de ${contexto.totalLivros} livros, posso dizer que você é um leitor apaixonado. Você está buscando recomendações, análises, conexões entre livros ou algo mais específico? Conte-me mais!`;
+    } 
+    // Tom Crítico para Recomendações
+    else if (perguntaLower.includes('recomend') || perguntaLower.includes('próximo')) {
+      const generosMaisLidos = contexto.generos.slice(0, 2).join(', ');
+      resposta = `Observo uma saturação no gênero ${generosMaisLidos || 'ficção'} em sua estante. Para elevar seu repertório, eu sugeriria uma ruptura: procure obras que subvertam essas convenções. Dada a sua tendência a avaliar positivamente autores de ${contexto.generos[0] || 'estilos similares'}, um movimento em direção a clássicos contemporâneos seria uma escolha analiticamente superior.`;
+    } 
+    // Tom Crítico para Estatísticas
+    else if (perguntaLower.includes('estatístic') || perguntaLower.includes('quantos')) {
+      const taxaAbandono = (contexto.abandonei / contexto.totalLivros * 100).toFixed(1);
+      resposta = `Seus dados quantitativos revelam um acervo de ${contexto.totalLivros} unidades. Analiticamente, sua taxa de conclusão é de ${(contexto.lidos / contexto.totalLivros * 100).toFixed(1)}%. O fato de você ter ${contexto.abandonei} abandonos (${taxaAbandono}%) sugere um filtro crítico rigoroso ou uma inconsistência na seleção de obras. Qual dessas hipóteses você sustenta?`;
+    }
+    // Resposta Padrão Analítica
+    else {
+      resposta = `Sua indagação sobre "${pergunta}" requer uma análise cuidadosa. Considerando sua estante de ${contexto.totalLivros} obras, percebo padrões de consumo literário que merecem escrutínio. Você deseja uma análise de tendências, um resumo técnico de uma obra específica ou uma crítica sobre suas metas de leitura?`;
     }
 
     return resposta;
@@ -96,7 +84,6 @@ export function LiteraryAgent({ livros, DA, GRAD_BTN }) {
   const enviarMensagem = async () => {
     if (!entrada.trim()) return;
 
-    // Adicionar mensagem do usuário
     const novaMensagemUsuario = {
       id: Date.now(),
       tipo: 'usuario',
@@ -108,7 +95,6 @@ export function LiteraryAgent({ livros, DA, GRAD_BTN }) {
     setEntrada('');
     setCarregando(true);
 
-    // Simular delay de processamento
     setTimeout(async () => {
       const respostaTexto = await gerarRespostaAgente(entrada);
       
@@ -131,7 +117,6 @@ export function LiteraryAgent({ livros, DA, GRAD_BTN }) {
     }
   };
 
-  // Se não expandido, mostrar apenas o botão flutuante
   if (!expandido) {
     return (
       <button
@@ -162,14 +147,13 @@ export function LiteraryAgent({ livros, DA, GRAD_BTN }) {
           e.currentTarget.style.transform = 'scale(1)';
           e.currentTarget.style.boxShadow = '0 4px 20px rgba(107,30,42,0.4)';
         }}
-        title="Abrir Agente Literário"
+        title="Abrir Crítico Literário"
       >
-        📚
+        🧐
       </button>
     );
   }
 
-  // Janela expandida do chat
   return (
     <div
       style={{
@@ -190,7 +174,6 @@ export function LiteraryAgent({ livros, DA, GRAD_BTN }) {
         border: `1px solid rgba(196,154,108,0.3)`,
       }}
     >
-      {/* Header */}
       <div
         style={{
           background: GRAD_BTN,
@@ -204,7 +187,7 @@ export function LiteraryAgent({ livros, DA, GRAD_BTN }) {
           fontSize: '15px',
         }}
       >
-        <span>📚 Agente Literário</span>
+        <span>🧐 Crítico Literário Analítico</span>
         <button
           onClick={() => setExpandido(false)}
           style={{
@@ -219,16 +202,12 @@ export function LiteraryAgent({ livros, DA, GRAD_BTN }) {
             alignItems: 'center',
             justifyContent: 'center',
             fontWeight: '800',
-            transition: 'background .2s',
           }}
-          onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.3)'}
-          onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
         >
           ✕
         </button>
       </div>
 
-      {/* Mensagens */}
       <div
         ref={containerRef}
         style={{
@@ -263,6 +242,7 @@ export function LiteraryAgent({ livros, DA, GRAD_BTN }) {
                 lineHeight: '1.5',
                 wordWrap: 'break-word',
                 fontWeight: msg.tipo === 'usuario' ? '600' : '500',
+                whiteSpace: 'pre-wrap'
               }}
             >
               {msg.texto}
@@ -272,25 +252,13 @@ export function LiteraryAgent({ livros, DA, GRAD_BTN }) {
 
         {carregando && (
           <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
-            <div
-              style={{
-                padding: '12px 14px',
-                borderRadius: '14px 14px 14px 4px',
-                background: 'rgba(212,197,169,0.3)',
-                display: 'flex',
-                gap: '4px',
-                alignItems: 'center',
-              }}
-            >
-              <span style={{ fontSize: '12px', color: DA.espresso, animation: 'pulse 1.4s infinite' }}>●</span>
-              <span style={{ fontSize: '12px', color: DA.espresso, animation: 'pulse 1.4s infinite 0.2s' }}>●</span>
-              <span style={{ fontSize: '12px', color: DA.espresso, animation: 'pulse 1.4s infinite 0.4s' }}>●</span>
+            <div style={{ padding: '12px 14px', borderRadius: '14px 14px 14px 4px', background: 'rgba(212,197,169,0.3)', display: 'flex', gap: '4px' }}>
+              <span className="dot">.</span><span className="dot">.</span><span className="dot">.</span>
             </div>
           </div>
         )}
       </div>
 
-      {/* Input */}
       <div
         style={{
           padding: '12px',
@@ -304,7 +272,7 @@ export function LiteraryAgent({ livros, DA, GRAD_BTN }) {
         <input
           ref={inputRef}
           type="text"
-          placeholder="Faça uma pergunta..."
+          placeholder="Ex: 'Resuma o livro X' ou 'Análise minha estante'..."
           value={entrada}
           onChange={e => setEntrada(e.target.value)}
           onKeyPress={handleKeyPress}
@@ -315,14 +283,10 @@ export function LiteraryAgent({ livros, DA, GRAD_BTN }) {
             border: `1px solid ${DA.warmBeige}`,
             borderRadius: '8px',
             fontSize: '13px',
-            fontFamily: 'inherit',
             outline: 'none',
-            transition: 'border-color .2s',
             background: 'white',
             color: DA.espresso,
           }}
-          onFocus={e => e.target.style.borderColor = DA.copper}
-          onBlur={e => e.target.style.borderColor = DA.warmBeige}
         />
         <button
           onClick={enviarMensagem}
@@ -333,22 +297,8 @@ export function LiteraryAgent({ livros, DA, GRAD_BTN }) {
             border: 'none',
             borderRadius: '8px',
             padding: '10px 14px',
-            cursor: carregando || !entrada.trim() ? 'not-allowed' : 'pointer',
+            cursor: 'pointer',
             fontWeight: '700',
-            fontSize: '13px',
-            opacity: carregando || !entrada.trim() ? 0.6 : 1,
-            transition: 'opacity .2s, transform .2s',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-          onMouseEnter={e => {
-            if (!carregando && entrada.trim()) {
-              e.currentTarget.style.transform = 'scale(1.05)';
-            }
-          }}
-          onMouseLeave={e => {
-            e.currentTarget.style.transform = 'scale(1)';
           }}
         >
           →
@@ -356,14 +306,11 @@ export function LiteraryAgent({ livros, DA, GRAD_BTN }) {
       </div>
 
       <style>{`
-        @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(8px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.4; }
-        }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        .dot { animation: pulse 1.4s infinite; }
+        .dot:nth-child(2) { animation-delay: 0.2s; }
+        .dot:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
       `}</style>
     </div>
   );
