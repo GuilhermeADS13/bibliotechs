@@ -12,6 +12,7 @@ import { BackgroundCarousel } from './components/BackgroundCarousel';
 import { LoveStories } from './components/LoveStories';
 import { loginGoogle, completeRedirectLogin } from './login';
 import { bookPlaceholder } from './placeholder';
+import { LiteraryAgent } from './components/LiteraryAgent';
 
 const DA = {
   mustard:'#C49A22', burntOrange:'#C4612A', brickRed:'#9E3D2E', oxblood:'#6B1E2A',
@@ -37,6 +38,7 @@ const CTA_BTN = {
 const ABAS = [
   { key:'inicio', label:'Início', emoji:'🏠' },
   { key:'estante', label:'Minha Estante', emoji:'📚' },
+  { key:'agente', label:'Agente IA', emoji:'🤖' },
   { key:'adicionar', label:'Adicionar', emoji:'➕' },
   { key:'metas', label:'Metas', emoji:'🎯' },
   { key:'love', label:'I ❤️ YOU', emoji:'💝', special:true },
@@ -470,6 +472,23 @@ export default function App() {
             )}
           </div>
         )}
+
+        {/* AGENTE IA */}
+        {aba === 'agente' && (
+          <div className="page-content" style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ textAlign: 'center', background: 'rgba(245,240,224,0.9)', padding: '40px', borderRadius: '20px', boxShadow: PANEL_SHADOW, maxWidth: '600px', backdropFilter: 'blur(12px)' }}>
+              <div style={{ fontSize: '64px', marginBottom: '20px' }}>🤖</div>
+              <h2 style={{ color: DA.espresso, fontSize: '24px', fontWeight: '900', marginBottom: '16px' }}>Agente Literário Inteligente</h2>
+              <p style={{ color: DA.walnut, lineHeight: '1.6', marginBottom: '24px' }}>
+                Clique no botão flutuante no canto inferior direito para conversar com seu assistente. 
+                Ele conhece toda a sua estante e pode ajudar com recomendações, estatísticas e muito mais!
+              </p>
+              <button onClick={() => setAba('estante')} style={CTA_BTN}>
+                Ver Minha Estante
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Modo I ❤️ YOU — stories de Dia dos Namorados */}
@@ -482,6 +501,9 @@ export default function App() {
       {fotoModal && (
         <FotoModal src={fotoModal.src} titulo={fotoModal.titulo} onFechar={() => setFotoModal(null)} />
       )}
+
+      {/* AGENTE LITERÁRIO FLUTUANTE */}
+      <LiteraryAgent livros={livros} DA={DA} GRAD_BTN={GRAD_BTN} />
     </div>
   );
 }
