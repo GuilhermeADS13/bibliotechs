@@ -1,11 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 
-export function LiteraryAgent({ livros, DA, GRAD_BTN }) {
+export function LiteraryAgent({ livros, DA, GRAD_BTN, googleBooksKey }) {
   const [mensagens, setMensagens] = useState([
     {
       id: 1,
       tipo: 'bot',
-      texto: 'Saudações. Sou seu Crítico Literário Analítico 🧐. Minha função não é apenas catalogar, mas dissecar sua estante com rigor. Estou pronto para fornecer resumos estruturados e análises profundas sobre suas leituras. O que vamos analisar hoje?',
+      texto: 'Saudações. Sou seu Crítico Literário Analítico 🧐. Minha função não é apenas catalogar, mas dissecar sua estante com rigor. Estou conectado à internet para buscar resumos e análises profundas. O que vamos analisar hoje?',
       timestamp: new Date()
     }
   ]);
@@ -15,14 +15,52 @@ export function LiteraryAgent({ livros, DA, GRAD_BTN }) {
   const containerRef = useRef(null);
   const inputRef = useRef(null);
 
-  // Scroll automático para a última mensagem
   useEffect(() => {
     if (containerRef.current) {
       containerRef.current.scrollTop = containerRef.current.scrollHeight;
     }
   }, [mensagens]);
 
-  // Preparar contexto da estante para o agente
+  // Buscar informações do livro na Google Books API
+  const buscarLivroNaInternet = async (titulo, autor = '') => {
+    try {
+      const queryParts = [];
+      if (titulo.trim().length >= 2) queryParts.push(`intitle:${titulo}`);
+      if (autor.trim().length >= 2) queryParts.push(`inauthor:${autor}`);
+      
+      if (queryParts.length === 0) return null;
+
+      const q = queryParts.join('+');
+      const keyParam = googleBooksKey ? `&key=${googleBooksKey}` : '';
+      const url = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}&maxResults=1${keyParam}`;
+
+      const res = await fetch(url);
+      if (!res.ok) return null;
+
+      const data = await res.json();
+      const item = data.items?.[0];
+      
+      if (!item) return null;
+
+      return {
+        titulo: item.volumeInfo.title || titulo,
+        autor: item.volumeInfo.authors?.join(', ') || autor || 'Desconhecido',
+        descricao: item.volumeInfo.description || 'Descrição não disponível',
+        paginas: item.volumeInfo.pageCount || 'N/A',
+        genero: item.volumeInfo.categories?.[0] || 'Não especificado',
+        dataPublicacao: item.volumeInfo.publishedDate || 'N/A',
+        editora: item.volumeInfo.publisher || 'N/A',
+        capa: item.volumeInfo.imageLinks?.thumbnail || null,
+        linguagem: item.volumeInfo.language || 'pt',
+        ratingMedio: item.volumeInfo.averageRating || 'N/A'
+      };
+    } catch (e) {
+      console.error('Erro ao buscar livro na API:', e);
+      return null;
+    }
+  };
+
+  // Preparar contexto da estante
   const prepararContextoEstante = () => {
     const stats = {
       totalLivros: livros.length,
@@ -41,41 +79,77 @@ export function LiteraryAgent({ livros, DA, GRAD_BTN }) {
     return stats;
   };
 
-  // Simular resposta do agente com tom CRÍTICO e ANALÍTICO
+  // Gerar resposta com tom crítico e analítico
   const gerarRespostaAgente = async (pergunta) => {
     const contexto = prepararContextoEstante();
     const perguntaLower = pergunta.toLowerCase();
     let resposta = '';
 
-    // FUNCIONALIDADE: Resumo Automático
-    if (perguntaLower.includes('resumo') || perguntaLower.includes('resumir')) {
-      const livroParaResumir = livros.find(l => 
+    // FUNCIONALIDADE: Resumo com dados da internet
+    if (perguntaLower.includes('resumo') || perguntaLower.includes('resumir') || perguntaLower.includes('análise')) {
+      // Tentar encontrar na estante local
+      let livroParaResumir = livros.find(l => 
         perguntaLower.includes(l.titulo.toLowerCase()) || 
         (l.autor && perguntaLower.includes(l.autor.toLowerCase()))
       );
 
-      if (livroParaResumir) {
-        resposta = `### Análise Sintética: "${livroParaResumir.titulo}"\n\n` +
-          `**Visão Geral:** Esta obra de ${livroParaResumir.autor || 'autor desconhecido'} insere-se no gênero ${livroParaResumir.genero || 'não especificado'}. \n\n` +
-          `**Resumo Analítico:** O texto explora a dialética entre seus temas centrais, apresentando uma narrativa que desafia a percepção do leitor sobre o gênero. Sob uma lente crítica, a estrutura da obra sugere uma tentativa de romper com tropos convencionais, embora sua eficácia dependa da profundidade da sua resenha pessoal.\n\n` +
-          `**Veredito do Crítico:** Você atribuiu uma nota ${livroParaResumir.nota}/5. Do ponto de vista técnico, essa avaliação indica que a obra ${livroParaResumir.nota >= 4 ? 'alcançou uma excelência formal notável' : 'apresenta falhas estruturais ou narrativas que limitaram seu impacto'}.`;
+      // Se não encontrar, extrair título e autor da pergunta
+      let tituloExtraido = '';
+      let autorExtraido = '';
+      
+      if (!livroParaResumir) {
+        // Tentar extrair "resumo de [Título] de [Autor]"
+        const match = pergunta.match(/(?:resumo|análise)(?:\s+de)?\s+['""]?([^'""\n]+?)['""]?(?:\s+de\s+([^,\n]+))?/i);
+        if (match) {
+          tituloExtraido = match[1].trim();
+          autorExtraido = match[2]?.trim() || '';
+        }
+      }
+
+      const titulo = livroParaResumir?.titulo || tituloExtraido;
+      const autor = livroParaResumir?.autor || autorExtraido;
+
+      if (!titulo) {
+        resposta = `Você solicitou uma análise, mas não identifiquei uma obra específica. Por favor, especifique: "Resuma o livro [Título]" ou "Análise de [Título] de [Autor]".`;
       } else {
-        resposta = `Você solicitou um resumo, mas não identifiquei uma obra específica da sua estante na sua mensagem. Por favor, especifique o título do livro que deseja que eu disseque.`;
+        // Buscar na internet
+        const infoLivro = await buscarLivroNaInternet(titulo, autor);
+
+        if (infoLivro) {
+          resposta = `### 📖 Análise Crítica: "${infoLivro.titulo}"\n\n` +
+            `**Metadados Técnicos:**\n` +
+            `- Autor: ${infoLivro.autor}\n` +
+            `- Gênero: ${infoLivro.genero}\n` +
+            `- Páginas: ${infoLivro.paginas}\n` +
+            `- Editora: ${infoLivro.editora}\n` +
+            `- Publicação: ${infoLivro.dataPublicacao}\n` +
+            `- Avaliação Média (Google Books): ${infoLivro.ratingMedio}/5\n\n` +
+            `**Sinopse Oficial:**\n${infoLivro.descricao}\n\n` +
+            `**Análise Crítica Personalizada:**\n` +
+            `Esta obra insere-se no gênero ${infoLivro.genero}, apresentando uma estrutura narrativa que merece escrutínio rigoroso. `;
+          
+          // Adicionar análise personalizada se o livro está na estante
+          if (livroParaResumir) {
+            resposta += `Você atribuiu a nota ${livroParaResumir.nota}/5, sugerindo que a obra ${livroParaResumir.nota >= 4 ? 'alcançou uma excelência formal notável' : livroParaResumir.nota >= 3 ? 'apresenta méritos com ressalvas estruturais' : 'possui limitações significativas em sua execução'}.`;
+          }
+        } else {
+          resposta = `A busca na Google Books API não retornou resultados para "${titulo}". Verifique o título ou tente com um autor diferente.`;
+        }
       }
     } 
     // Tom Crítico para Recomendações
     else if (perguntaLower.includes('recomend') || perguntaLower.includes('próximo')) {
       const generosMaisLidos = contexto.generos.slice(0, 2).join(', ');
-      resposta = `Observo uma saturação no gênero ${generosMaisLidos || 'ficção'} em sua estante. Para elevar seu repertório, eu sugeriria uma ruptura: procure obras que subvertam essas convenções. Dada a sua tendência a avaliar positivamente autores de ${contexto.generos[0] || 'estilos similares'}, um movimento em direção a clássicos contemporâneos seria uma escolha analiticamente superior.`;
+      resposta = `Observo uma saturação no gênero ${generosMaisLidos || 'ficção'} em sua estante. Para elevar seu repertório analiticamente, sugiro uma ruptura: procure obras que subvertam essas convenções. Dada a sua tendência a avaliar positivamente autores de ${contexto.generos[0] || 'estilos similares'}, um movimento em direção a clássicos contemporâneos seria uma escolha superior.`;
     } 
     // Tom Crítico para Estatísticas
     else if (perguntaLower.includes('estatístic') || perguntaLower.includes('quantos')) {
       const taxaAbandono = (contexto.abandonei / contexto.totalLivros * 100).toFixed(1);
-      resposta = `Seus dados quantitativos revelam um acervo de ${contexto.totalLivros} unidades. Analiticamente, sua taxa de conclusão é de ${(contexto.lidos / contexto.totalLivros * 100).toFixed(1)}%. O fato de você ter ${contexto.abandonei} abandonos (${taxaAbandono}%) sugere um filtro crítico rigoroso ou uma inconsistência na seleção de obras. Qual dessas hipóteses você sustenta?`;
+      resposta = `Seus dados quantitativos revelam um acervo de ${contexto.totalLivros} unidades. Analiticamente, sua taxa de conclusão é de ${(contexto.lidos / contexto.totalLivros * 100).toFixed(1)}%. O fato de você ter ${contexto.abandonei} abandonos (${taxaAbandono}%) sugere um filtro crítico rigoroso ou inconsistência na seleção. Qual dessas hipóteses você sustenta?`;
     }
     // Resposta Padrão Analítica
     else {
-      resposta = `Sua indagação sobre "${pergunta}" requer uma análise cuidadosa. Considerando sua estante de ${contexto.totalLivros} obras, percebo padrões de consumo literário que merecem escrutínio. Você deseja uma análise de tendências, um resumo técnico de uma obra específica ou uma crítica sobre suas metas de leitura?`;
+      resposta = `Sua indagação sobre "${pergunta}" requer análise cuidadosa. Considerando sua estante de ${contexto.totalLivros} obras, percebo padrões de consumo que merecem escrutínio. Você deseja uma análise de tendências, um resumo técnico de uma obra específica ou uma crítica sobre suas metas?`;
     }
 
     return resposta;
@@ -107,7 +181,7 @@ export function LiteraryAgent({ livros, DA, GRAD_BTN }) {
 
       setMensagens(prev => [...prev, novaMensagemBot]);
       setCarregando(false);
-    }, 800);
+    }, 1200);
   };
 
   const handleKeyPress = (e) => {
@@ -187,7 +261,7 @@ export function LiteraryAgent({ livros, DA, GRAD_BTN }) {
           fontSize: '15px',
         }}
       >
-        <span>🧐 Crítico Literário Analítico</span>
+        <span>🧐 Crítico Analítico (Online)</span>
         <button
           onClick={() => setExpandido(false)}
           style={{
@@ -272,7 +346,7 @@ export function LiteraryAgent({ livros, DA, GRAD_BTN }) {
         <input
           ref={inputRef}
           type="text"
-          placeholder="Ex: 'Resuma o livro X' ou 'Análise minha estante'..."
+          placeholder="Ex: 'Resuma [Título]' ou 'Análise de [Título]'..."
           value={entrada}
           onChange={e => setEntrada(e.target.value)}
           onKeyPress={handleKeyPress}

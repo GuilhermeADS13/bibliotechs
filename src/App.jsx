@@ -503,7 +503,12 @@ export default function App() {
       )}
 
       {/* AGENTE LITERÁRIO FLUTUANTE */}
-      <LiteraryAgent livros={livros} DA={DA} GRAD_BTN={GRAD_BTN} />
+      <LiteraryAgent 
+        livros={livros} 
+        DA={DA} 
+        GRAD_BTN={GRAD_BTN} 
+        googleBooksKey={import.meta.env.VITE_GOOGLE_BOOKS_API_KEY}
+      />
     </div>
   );
 }
