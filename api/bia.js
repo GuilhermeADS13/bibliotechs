@@ -52,6 +52,11 @@ export default async function handler(req, res) {
   if (typeof contexto === 'string' && contexto.length > MAX_CONTEXTO) {
     return res.status(413).json({ erro: 'contexto-longo' });
   }
+  // O histórico cresce a cada turno e o endpoint é público: sem teto, uma
+  // conversa longa (ou um cliente mal-intencionado) mandaria payload ilimitado.
+  if (historicoLongoDemais(historico)) {
+    return res.status(413).json({ erro: 'historico-longo' });
+  }
 
   const modelo = process.env.BIA_MODEL || MODELO_PADRAO;
   const contents = montarContents({ pergunta, contexto, historico });
@@ -112,6 +117,15 @@ export default async function handler(req, res) {
   } finally {
     clearTimeout(timer);
   }
+}
+
+function historicoLongoDemais(historico) {
+  if (!Array.isArray(historico)) return false;
+  const total = historico.reduce(
+    (soma, m) => soma + (typeof m?.texto === 'string' ? m.texto.length : 0),
+    0
+  );
+  return total > MAX_CONTEXTO;
 }
 
 /**
@@ -209,10 +223,18 @@ function montarInstrucao(contexto) {
 
   return base.concat([
     '',
-    'REGRA CRÍTICA SOBRE NÚMEROS: todos os dados abaixo foram calculados pelo',
+    'REGRA CRÍTICA SOBRE NÚMEROS: os dados abaixo foram calculados pelo',
     'aplicativo e são exatos. Use apenas esses números. Nunca invente, estime ou',
-    'recalcule estatísticas. Se a resposta exige um dado que não está aqui, diga',
-    'que não tem esse dado em vez de deduzi-lo.',
+    'recalcule estatísticas. Se a resposta exige um NÚMERO que não está aqui,',
+    'diga que não tem esse dado em vez de deduzi-lo.',
+    '',
+    'O QUE ESSA REGRA NÃO ALCANÇA: ela vale para estatísticas da estante, não',
+    'para literatura. Sobre as OBRAS em si — enredo, autor, contexto histórico,',
+    'estilo, recepção crítica, comparação com outros livros — responda com sua',
+    'própria bagagem, normalmente. Se perguntarem "me fale mais sobre o livro',
+    'que eu coloquei", fale do livro de verdade: do que trata, quem escreveu, o',
+    'que o caracteriza. Não responda que faltam dados: o título está logo abaixo,',
+    'e o que foi pedido não é uma estatística.',
     '',
     '--- DADOS DA ESTANTE (exatos) ---',
     contexto,

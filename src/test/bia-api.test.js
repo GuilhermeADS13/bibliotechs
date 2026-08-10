@@ -132,6 +132,35 @@ describe('handler api/bia', () => {
     expect(instrucao).toMatch(/Nunca invente, estime ou/);
   });
 
+  // A regra dos números estava sendo aplicada a todo conhecimento: perguntada
+  // sobre a obra cadastrada, ela respondia "não tenho dados analíticos" em vez
+  // de falar do livro, que é algo que ela sabe.
+  it('deixa claro que a regra dos números não alcança conhecimento literário', async () => {
+    const espiao = vi.fn().mockResolvedValue(respostaOk());
+    vi.stubGlobal('fetch', espiao);
+
+    await handler(req({
+      pergunta: 'queria saber mais sobre o livro que eu coloquei',
+      contexto: 'Lendo agora: "Coração Satânico"',
+    }), criarRes());
+
+    const instrucao = JSON.parse(espiao.mock.calls[0][1].body).contents[0].parts[0].text;
+    expect(instrucao).toMatch(/O QUE ESSA REGRA NÃO ALCANÇA/);
+    expect(instrucao).toMatch(/enredo, autor, contexto histórico/);
+    expect(instrucao).toMatch(/Não responda que faltam dados/);
+  });
+
+  it('rejeita histórico grande demais', async () => {
+    const res = criarRes();
+    await handler(req({
+      pergunta: 'e aí?',
+      contexto: 'x',
+      historico: [{ papel: 'usuario', texto: 'a'.repeat(20001) }],
+    }), res);
+    expect(res.statusCode).toBe(413);
+    expect(res.corpo.erro).toBe('historico-longo');
+  });
+
   it('proíbe ataque pessoal em qualquer situação', async () => {
     const espiao = vi.fn().mockResolvedValue(respostaOk());
     vi.stubGlobal('fetch', espiao);

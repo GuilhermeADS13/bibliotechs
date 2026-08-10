@@ -110,9 +110,12 @@ export function prepararHistorico(mensagens) {
 }
 
 /**
- * Pergunta ao modelo. Devolve null em qualquer falha — chave ausente, cota
- * esgotada, offline, ou rodando em `vite dev` (onde /api não existe).
- * O chamador trata null usando as regras locais, então a B.IA nunca fica muda.
+ * Pergunta ao modelo.
+ *
+ * Devolve sempre { texto, erro }: um dos dois preenchido. Antes devolvia só
+ * `null` em qualquer falha, e o chamador respondia com um texto genérico que
+ * parecia uma resposta de verdade — o usuário via a mesma frase vazia repetida
+ * sem saber que algo tinha quebrado. O motivo do erro agora sobe junto.
  */
 export async function perguntarAoModelo(pergunta, contexto, { sinal, historico } = {}) {
   const controller = new AbortController();
@@ -127,16 +130,36 @@ export async function perguntarAoModelo(pergunta, contexto, { sinal, historico }
       body: JSON.stringify({ pergunta, contexto, historico: prepararHistorico(historico) }),
     });
 
-    if (!res.ok) return null;
+    if (!res.ok) {
+      const corpo = await res.json().catch(() => null);
+      return { texto: null, erro: corpo?.erro || `http-${res.status}` };
+    }
 
     const dados = await res.json().catch(() => null);
     const texto = typeof dados?.texto === 'string' ? dados.texto.trim() : '';
-    return texto || null;
-  } catch {
-    // Rede caiu, timeout, ou /api/bia não existe neste ambiente.
-    return null;
+    return texto ? { texto, erro: null } : { texto: null, erro: 'resposta-vazia' };
+  } catch (e) {
+    // Distinguir timeout de queda de rede muda a orientação dada ao usuário.
+    const expirou = e?.name === 'AbortError';
+    return { texto: null, erro: expirou ? 'timeout' : 'sem-conexao' };
   } finally {
     clearTimeout(timer);
+  }
+}
+
+/** Explica a falha em linguagem de usuário, com o que fazer a respeito. */
+export function mensagemDeFalha(erro) {
+  switch (erro) {
+    case 'cota-esgotada':
+      return 'Atingi o limite diário de consultas ao modelo. Amanhã volto ao normal — enquanto isso, ainda respondo sobre estatísticas, resumos e recomendações da sua estante.';
+    case 'timeout':
+      return 'A resposta demorou demais e eu interrompi a espera. Tente perguntar de novo.';
+    case 'sem-conexao':
+      return 'Não consegui me conectar. Verifique sua internet e tente de novo.';
+    case 'sem-chave':
+      return 'Ainda não estou conectada ao modelo de linguagem. Posso responder sobre estatísticas, resumos e recomendações da sua estante.';
+    default:
+      return 'Não consegui processar sua pergunta agora. Tente novamente em instantes.';
   }
 }
 

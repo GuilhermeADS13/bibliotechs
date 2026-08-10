@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { montarContexto, perguntarAoModelo, prepararHistorico } from '../bia';
+import { montarContexto, perguntarAoModelo, prepararHistorico, mensagemDeFalha } from '../bia';
 
 const acervo = [
   { id: 1, titulo: 'Dom Casmurro', autor: 'Machado de Assis', genero: 'Clássico', status: 'lido', nota: 5, dataTermino: '2026-03-10', paginas: 256 },
@@ -94,7 +94,10 @@ describe('perguntarAoModelo', () => {
       ok: true,
       json: async () => ({ texto: 'Sua taxa de abandono merece exame.' }),
     }));
-    await expect(perguntarAoModelo('e aí?', 'ctx')).resolves.toBe('Sua taxa de abandono merece exame.');
+    await expect(perguntarAoModelo('e aí?', 'ctx')).resolves.toEqual({
+      texto: 'Sua taxa de abandono merece exame.',
+      erro: null,
+    });
   });
 
   it('envia o histórico no corpo da requisição', async () => {
@@ -125,32 +128,74 @@ describe('perguntarAoModelo', () => {
     expect(JSON.parse(espiao.mock.calls[0][1].body).historico).toEqual([]);
   });
 
-  // Cada caso abaixo precisa cair no fallback de regras em vez de quebrar o chat.
-  it('devolve null quando a chave não está configurada (503)', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 503 }));
-    await expect(perguntarAoModelo('e aí?', 'ctx')).resolves.toBeNull();
+  // Em toda falha o texto vem nulo E o motivo sobe junto — sem o motivo, o chat
+  // não tem como dizer ao usuário o que aconteceu.
+  it('reporta sem-chave quando a variável não está configurada (503)', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: false, status: 503, json: async () => ({ erro: 'sem-chave' }),
+    }));
+    await expect(perguntarAoModelo('e aí?', 'ctx')).resolves.toEqual({ texto: null, erro: 'sem-chave' });
   });
 
-  it('devolve null quando a cota esgota (502)', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 502 }));
-    await expect(perguntarAoModelo('e aí?', 'ctx')).resolves.toBeNull();
+  it('reporta cota-esgotada quando o limite diário estoura', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: false, status: 502, json: async () => ({ erro: 'cota-esgotada' }),
+    }));
+    await expect(perguntarAoModelo('e aí?', 'ctx')).resolves.toEqual({ texto: null, erro: 'cota-esgotada' });
   });
 
-  it('devolve null quando a rede falha', async () => {
+  it('reporta sem-conexao quando a rede falha', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')));
-    await expect(perguntarAoModelo('e aí?', 'ctx')).resolves.toBeNull();
+    await expect(perguntarAoModelo('e aí?', 'ctx')).resolves.toEqual({ texto: null, erro: 'sem-conexao' });
   });
 
-  it('devolve null quando /api/bia não existe (vite dev devolve HTML)', async () => {
+  it('usa o status quando o corpo do erro não é legível', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: false, status: 500, json: async () => { throw new Error('sem json'); },
+    }));
+    await expect(perguntarAoModelo('e aí?', 'ctx')).resolves.toEqual({ texto: null, erro: 'http-500' });
+  });
+
+  it('reporta resposta-vazia quando /api/bia devolve HTML (vite dev)', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
       json: async () => { throw new SyntaxError('Unexpected token <'); },
     }));
-    await expect(perguntarAoModelo('e aí?', 'ctx')).resolves.toBeNull();
+    await expect(perguntarAoModelo('e aí?', 'ctx')).resolves.toEqual({ texto: null, erro: 'resposta-vazia' });
   });
 
-  it('devolve null quando o texto vem vazio', async () => {
+  it('reporta resposta-vazia quando o texto vem em branco', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ texto: '   ' }) }));
-    await expect(perguntarAoModelo('e aí?', 'ctx')).resolves.toBeNull();
+    await expect(perguntarAoModelo('e aí?', 'ctx')).resolves.toEqual({ texto: null, erro: 'resposta-vazia' });
+  });
+});
+
+describe('mensagemDeFalha', () => {
+  // O texto genérico anterior fingia ser uma resposta e se repetia igual a cada
+  // tentativa, escondendo do usuário que algo tinha quebrado.
+  it('explica a cota esgotada e o que ainda funciona', () => {
+    const m = mensagemDeFalha('cota-esgotada');
+    expect(m).toMatch(/limite diário/);
+    expect(m).toMatch(/estatísticas|resumos|recomendações/);
+  });
+
+  it('orienta a tentar de novo no timeout', () => {
+    expect(mensagemDeFalha('timeout')).toMatch(/demorou|de novo/i);
+  });
+
+  it('aponta a internet quando não há conexão', () => {
+    expect(mensagemDeFalha('sem-conexao')).toMatch(/internet|conectar/i);
+  });
+
+  it('tem texto padrão para erro desconhecido', () => {
+    const m = mensagemDeFalha('coisa-nova-qualquer');
+    expect(typeof m).toBe('string');
+    expect(m.length).toBeGreaterThan(20);
+  });
+
+  it('nunca finge que analisou a estante', () => {
+    for (const e of ['cota-esgotada', 'timeout', 'sem-conexao', 'sem-chave', 'outro']) {
+      expect(mensagemDeFalha(e)).not.toMatch(/requer análise cuidadosa|padrões de consumo/);
+    }
   });
 });

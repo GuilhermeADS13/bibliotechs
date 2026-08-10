@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { calcularEstatisticas, resumoMensalTexto, MESES_LONGOS } from '../estatisticas';
 import { gerarRecomendacoes } from '../recomendacoes';
-import { montarContexto, perguntarAoModelo } from '../bia';
+import { montarContexto, perguntarAoModelo, mensagemDeFalha } from '../bia';
 import { BiaAvatar } from './BiaAvatar';
 import { useConversas, diaDeHoje, rotularDia } from '../hooks/useConversas';
 
@@ -123,13 +123,20 @@ export function LiteraryAgent({ livros, user, DA, GRAD_BTN, googleBooksKey }) {
     if (!precisaBuscaExterna) {
       // `mensagens` ainda não inclui a pergunta atual (o React só aplica o
       // estado no próximo render), então é exatamente o histórico anterior.
-      const doModelo = await perguntarAoModelo(pergunta, montarContexto(livros), {
+      const { texto, erro } = await perguntarAoModelo(pergunta, montarContexto(livros), {
         historico: mensagens,
       });
-      if (doModelo) return doModelo;
+      if (texto) return texto;
+
+      // O modelo falhou. As regras só assumem se realmente souberem responder;
+      // do contrário o usuário recebia um texto genérico que parecia resposta e
+      // se repetia igual a cada tentativa, escondendo que algo quebrou.
+      const daRegra = await responderComRegras(pergunta);
+      return daRegra || mensagemDeFalha(erro);
     }
 
-    return responderComRegras(pergunta);
+    return (await responderComRegras(pergunta))
+      || 'Não identifiquei o que você quer saber. Peça um resumo ("Resuma [Título]"), uma recomendação, ou pergunte sobre seu ritmo de leitura.';
   };
 
   // Motor de regras original — agora o fallback, não o caminho principal.
@@ -260,9 +267,11 @@ export function LiteraryAgent({ livros, user, DA, GRAD_BTN, googleBooksKey }) {
       }
     }
 
-    // Resposta Padrão Analítica
+    // Nenhuma regra reconheceu a pergunta. Devolve null em vez de um texto
+    // genérico: quem chama decide o que dizer, sabendo se houve falha do modelo
+    // ou se foi só uma pergunta fora do alcance das regras.
     else {
-      resposta = `Sua indagação sobre "${pergunta}" requer análise cuidadosa. Considerando sua estante de ${contexto.totalLivros} obras, percebo padrões de consumo que merecem escrutínio. Você deseja uma análise de tendências, um resumo técnico de uma obra específica ou uma crítica sobre suas metas?`;
+      return null;
     }
 
     return resposta;
