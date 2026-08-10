@@ -27,6 +27,46 @@ export const handlers = [
         ]
       });
     }
+    // Buscas por gênero/autor usadas pelo motor de recomendações
+    if (q.startsWith('subject:') || q.startsWith('inauthor:')) {
+      return HttpResponse.json({
+        items: [
+          {
+            id: 'rec-1',
+            volumeInfo: {
+              title: 'Memórias Póstumas de Brás Cubas',
+              authors: ['Machado de Assis'],
+              categories: ['Clássico'],
+              pageCount: 208,
+              publishedDate: '1881',
+              averageRating: 4.8,
+              imageLinks: { thumbnail: 'http://books.google.com/capa1.jpg' },
+            },
+          },
+          {
+            id: 'rec-2',
+            volumeInfo: {
+              title: 'Quincas Borba',
+              authors: ['Machado de Assis'],
+              categories: ['Clássico'],
+              publishedDate: '1891',
+              averageRating: 4.2,
+            },
+          },
+          {
+            // Já está na estante de teste — deve ser filtrado das recomendações
+            id: 'rec-3',
+            volumeInfo: {
+              title: 'Dom Casmurro',
+              authors: ['Machado de Assis'],
+              categories: ['Clássico'],
+              averageRating: 5,
+            },
+          },
+        ],
+      });
+    }
+
     return HttpResponse.json({ items: [] });
   })
 ];

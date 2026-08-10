@@ -1,0 +1,96 @@
+import { describe, it, expect } from 'vitest';
+import { perfilLeitor, gerarRecomendacoes, normalizar } from '../recomendacoes';
+
+const estante = [
+  { titulo: 'Dom Casmurro', autor: 'Machado de Assis', genero: 'Clássico', status: 'lido', nota: 5 },
+  { titulo: 'O Cortiço', autor: 'Aluísio Azevedo', genero: 'Clássico', status: 'lido', nota: 4 },
+  { titulo: 'Livro Ruim', autor: 'Fulano', genero: 'Terror', status: 'abandonei', nota: 1 },
+  { titulo: 'Na Fila', autor: 'Ciclano', genero: 'Fantasia', status: 'quero-ler' },
+];
+
+describe('normalizar', () => {
+  it('remove acentos, caixa e pontuação', () => {
+    expect(normalizar('Ação & Coração!')).toBe('acao coracao');
+    expect(normalizar('DOM CASMURRO')).toBe('dom casmurro');
+  });
+
+  it('trata valores nulos', () => {
+    expect(normalizar(null)).toBe('');
+    expect(normalizar(undefined)).toBe('');
+  });
+});
+
+describe('perfilLeitor', () => {
+  it('pondera gêneros pela nota dada', () => {
+    const p = perfilLeitor(estante);
+    expect(p.generosFavoritos[0].nome).toBe('Clássico');
+    expect(p.totalLidos).toBe(2);
+    expect(p.notaMedia).toBe(4.5);
+  });
+
+  it('exclui gêneros de livros abandonados', () => {
+    const p = perfilLeitor(estante);
+    expect(p.generosFavoritos.map(g => g.nome)).not.toContain('Terror');
+  });
+
+  it('ignora livros ainda não lidos na pontuação', () => {
+    const p = perfilLeitor(estante);
+    expect(p.generosFavoritos.map(g => g.nome)).not.toContain('Fantasia');
+  });
+
+  it('não quebra com estante vazia', () => {
+    const p = perfilLeitor([]);
+    expect(p.totalLidos).toBe(0);
+    expect(p.generosFavoritos).toEqual([]);
+  });
+});
+
+describe('gerarRecomendacoes', () => {
+  it('retorna sem-historico quando nada foi lido', async () => {
+    const r = await gerarRecomendacoes([{ titulo: 'X', status: 'quero-ler' }]);
+    expect(r.motivo).toBe('sem-historico');
+    expect(r.recomendacoes).toEqual([]);
+  });
+
+  it('retorna sem-generos quando faltam metadados', async () => {
+    const r = await gerarRecomendacoes([{ titulo: 'X', status: 'lido', nota: 5 }]);
+    expect(r.motivo).toBe('sem-generos');
+  });
+
+  it('busca candidatos e ordena por avaliação', async () => {
+    const r = await gerarRecomendacoes(estante, { limite: 6 });
+    expect(r.motivo).toBe('ok');
+    expect(r.recomendacoes.length).toBeGreaterThan(0);
+    expect(r.recomendacoes[0].titulo).toBe('Memórias Póstumas de Brás Cubas');
+    expect(r.recomendacoes[0].ratingMedio).toBe(4.8);
+  });
+
+  it('não recomenda livros que já estão na estante', async () => {
+    const r = await gerarRecomendacoes(estante, { limite: 6 });
+    const titulos = r.recomendacoes.map(x => x.titulo);
+    expect(titulos).not.toContain('Dom Casmurro');
+  });
+
+  it('não repete o mesmo título vindo de buscas diferentes', async () => {
+    const r = await gerarRecomendacoes(estante, { limite: 6 });
+    const titulos = r.recomendacoes.map(x => x.titulo);
+    expect(new Set(titulos).size).toBe(titulos.length);
+  });
+
+  it('respeita o limite pedido', async () => {
+    const r = await gerarRecomendacoes(estante, { limite: 1 });
+    expect(r.recomendacoes).toHaveLength(1);
+  });
+
+  it('anexa o motivo da recomendação', async () => {
+    const r = await gerarRecomendacoes(estante, { limite: 3 });
+    expect(r.recomendacoes[0].motivo).toBeTruthy();
+    expect(typeof r.recomendacoes[0].motivo).toBe('string');
+  });
+
+  it('converte capa http em https', async () => {
+    const r = await gerarRecomendacoes(estante, { limite: 6 });
+    const comCapa = r.recomendacoes.find(x => x.capa);
+    expect(comCapa.capa.startsWith('https://')).toBe(true);
+  });
+});

@@ -1,11 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { calcularEstatisticas, resumoMensalTexto, MESES_LONGOS } from '../estatisticas';
+import { gerarRecomendacoes } from '../recomendacoes';
+import { BiaAvatar } from './BiaAvatar';
 
 export function LiteraryAgent({ livros, DA, GRAD_BTN, googleBooksKey }) {
   const [mensagens, setMensagens] = useState([
     {
       id: 1,
       tipo: 'bot',
-      texto: 'Saudações. Sou B.IA, sua Agente Literária Analítica 🧐. Minha função não é apenas catalogar, mas dissecar sua estante com rigor. Estou conectada à internet para buscar resumos e análises profundas. O que vamos analisar hoje?',
+      texto: 'Saudações. Sou B.IA, sua Agente Literária Analítica 🧐. Minha função não é apenas catalogar, mas dissecar sua estante com rigor. Analiso seu ritmo mensal, recomendo obras a partir do seu histórico e busco resumos na internet. O que vamos analisar hoje?',
       timestamp: new Date()
     }
   ]);
@@ -91,10 +94,41 @@ export function LiteraryAgent({ livros, DA, GRAD_BTN, googleBooksKey }) {
     // Tom Crítico para Estatísticas (Prioridade sobre Resumo se contiver palavras-chave)
     const isStats = perguntaLower.includes('estatístic') || perguntaLower.includes('quantos');
 
-    if (isStats) {
-      const taxaAbandono = (contexto.abandonei / contexto.totalLivros * 100).toFixed(1);
-      resposta = `Seus dados quantitativos revelam um acervo de ${contexto.totalLivros} unidades. Analiticamente, sua taxa de conclusão é de ${(contexto.lidos / contexto.totalLivros * 100).toFixed(1)}%. O fato de você ter ${contexto.abandonei} abandonos (${taxaAbandono}%) sugere um filtro crítico rigoroso ou inconsistência na seleção. Qual dessas hipóteses você sustenta?`;
-    } 
+    // Análise temporal — tem prioridade sobre estatísticas gerais, pois "quantos
+    // livros li por mês" dispara as duas condições.
+    const isMensal = perguntaLower.includes('por mês') || perguntaLower.includes('por mes')
+      || perguntaLower.includes('mensal') || perguntaLower.includes('ritmo')
+      || perguntaLower.includes('cada mês') || perguntaLower.includes('cada mes');
+
+    if (isMensal) {
+      const stats = calcularEstatisticas(livros, new Date().getFullYear());
+      resposta = `### 📅 Análise Temporal de ${stats.ano}\n\n${resumoMensalTexto(stats)}`;
+
+      if (stats.totalNoAno > 0) {
+        const linhas = stats.porMes
+          .filter(m => m.quantidade > 0)
+          .map(m => `- **${m.nomeLongo}**: ${m.quantidade} ${m.quantidade === 1 ? 'livro' : 'livros'}${m.paginas > 0 ? ` (${m.paginas.toLocaleString('pt-BR')} pág.)` : ''}`);
+        resposta += `\n\n**Distribuição mensal:**\n${linhas.join('\n')}`;
+
+        if (stats.sequenciaAtual > 1) {
+          resposta += `\n\nRegistro uma sequência de ${stats.sequenciaAtual} meses consecutivos com leitura — consistência é mais relevante que volume esporádico.`;
+        } else if (stats.mesesAtivos > 1) {
+          resposta += `\n\nSua distribuição é intermitente. Regularidade produziria resultados superiores ao acúmulo concentrado.`;
+        }
+      }
+      resposta += `\n\nConsulte a aba **📊 Estatísticas** para o gráfico completo.`;
+    }
+    else if (isStats) {
+      const stats = calcularEstatisticas(livros, new Date().getFullYear());
+      resposta = `Seus dados quantitativos revelam um acervo de ${contexto.totalLivros} unidades. Analiticamente, sua taxa de conclusão é de ${stats.taxaConclusao}%. O fato de você ter ${contexto.abandonei} abandonos (${stats.taxaAbandono}%) sugere um filtro crítico rigoroso ou inconsistência na seleção. Qual dessas hipóteses você sustenta?`;
+
+      if (stats.totalNoAno > 0) {
+        resposta += `\n\nNo recorte de ${stats.ano}: ${stats.totalNoAno} ${stats.totalNoAno === 1 ? 'obra concluída' : 'obras concluídas'}, média de ${stats.mediaMensal} por mês ativo${stats.melhorMes ? `, com pico em ${stats.melhorMes.nomeLongo}` : ''}.`;
+      }
+      if (stats.notaMedia > 0) {
+        resposta += ` Sua nota média é ${stats.notaMedia}/5 — ${stats.notaMedia >= 4.5 ? 'generosidade avaliativa que merece questionamento' : stats.notaMedia >= 3.5 ? 'um padrão equilibrado' : 'um rigor considerável'}.`;
+      }
+    }
     else if (isResumo) {
       // Tentar extrair título e autor da pergunta primeiro
       let tituloExtraido = '';
@@ -144,11 +178,37 @@ export function LiteraryAgent({ livros, DA, GRAD_BTN, googleBooksKey }) {
         }
       }
     } 
-    // Tom Crítico para Recomendações
-    else if (perguntaLower.includes('recomend') || perguntaLower.includes('próximo')) {
-      const generosMaisLidos = contexto.generos.slice(0, 2).join(', ');
-      resposta = `Observo uma saturação no gênero ${generosMaisLidos || 'ficção'} em sua estante. Para elevar seu repertório analiticamente, sugiro uma ruptura: procure obras que subvertam essas convenções. Dada a sua tendência a avaliar positivamente autores de ${contexto.generos[0] || 'estilos similares'}, um movimento em direção a clássicos contemporâneos seria uma escolha superior.`;
-    } 
+    // Recomendações personalizadas a partir do histórico real
+    else if (perguntaLower.includes('recomend') || perguntaLower.includes('próximo')
+      || perguntaLower.includes('proximo') || perguntaLower.includes('sugest')
+      || perguntaLower.includes('o que ler') || perguntaLower.includes('que eu leio')) {
+
+      const { recomendacoes, perfil, motivo } = await gerarRecomendacoes(livros, {
+        googleBooksKey,
+        limite: 4,
+      });
+
+      if (motivo === 'sem-historico') {
+        resposta = `Não posso recomendar sem base empírica. Sua estante não registra obras concluídas. Marque ao menos um livro como "lido" e atribua uma nota — só então minhas sugestões terão fundamento.`;
+      } else if (motivo === 'sem-generos') {
+        resposta = `Seus livros lidos não têm gênero nem autor preenchidos. Sem esses metadados, qualquer recomendação seria arbitrária. Complete os campos na aba Adicionar.`;
+      } else if (recomendacoes.length === 0) {
+        resposta = `A busca não retornou títulos fora do seu acervo. Isso pode indicar cobertura limitada da API para os gêneros que você frequenta — ou que seu repertório já os esgotou.`;
+      } else {
+        const generos = perfil.generosFavoritos.slice(0, 2).map(g => g.nome).join(' e ');
+        resposta = `### 📚 Recomendações Baseadas no Seu Histórico\n\n`
+          + `Analisei suas ${perfil.totalLidos} ${perfil.totalLidos === 1 ? 'leitura concluída' : 'leituras concluídas'}. `
+          + `Sua preferência recai sobre ${generos || 'gêneros variados'}`
+          + `${perfil.notaMedia > 0 ? `, com nota média de ${perfil.notaMedia}/5` : ''}. Seleção:\n\n`
+          + recomendacoes.map((r, i) =>
+              `**${i + 1}. ${r.titulo}**\n`
+              + `- Autor: ${r.autor}${r.ano ? ` (${r.ano})` : ''}\n`
+              + `${r.ratingMedio > 0 ? `- Avaliação: ${r.ratingMedio}/5\n` : ''}`
+              + `- Critério: ${r.motivo}`
+            ).join('\n\n');
+        resposta += `\n\nAdvertência analítica: recomendar pelo que você já aprova reforça seus vieses. A aba **📊 Estatísticas** mostra a lista completa — considere também romper com o padrão.`;
+      }
+    }
 
     // Resposta Padrão Analítica
     else {
@@ -227,10 +287,12 @@ export function LiteraryAgent({ livros, DA, GRAD_BTN, googleBooksKey }) {
         }}
         title="Abrir B.IA"
       >
-        <img 
-          src="/assets/bia-icon.png" 
-          alt="B.IA" 
-          style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+        <img
+          src="/assets/bia-icon.jpg"
+          alt="B.IA"
+          width="66"
+          height="66"
+          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
         />
       </button>
     );
@@ -270,11 +332,7 @@ export function LiteraryAgent({ livros, DA, GRAD_BTN, googleBooksKey }) {
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <img 
-            src="/assets/bia-icon.png" 
-            alt="B.IA" 
-            style={{ width: '32px', height: '32px', borderRadius: '50%', border: '2px solid white', objectFit: 'cover' }} 
-          />
+          <BiaAvatar size={32} borda />
           <span>B.IA (Online)</span>
         </div>
         <button
@@ -361,7 +419,7 @@ export function LiteraryAgent({ livros, DA, GRAD_BTN, googleBooksKey }) {
         <input
           ref={inputRef}
           type="text"
-          placeholder="Ex: 'Resuma [Título]' ou 'Análise de [Título]'..."
+          placeholder="Ex: 'Resuma [Título]' ou 'Quantos livros li por mês?'..."
           value={entrada}
           onChange={e => setEntrada(e.target.value)}
           onKeyPress={handleKeyPress}

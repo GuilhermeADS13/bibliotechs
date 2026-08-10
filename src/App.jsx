@@ -13,6 +13,8 @@ import { LoveStories } from './components/LoveStories';
 import { loginGoogle, completeRedirectLogin } from './login';
 import { bookPlaceholder } from './placeholder';
 import { LiteraryAgent } from './components/LiteraryAgent';
+import { Estatisticas } from './components/Estatisticas';
+import { BiaAvatar } from './components/BiaAvatar';
 
 const DA = {
   mustard:'#C49A22', burntOrange:'#C4612A', brickRed:'#9E3D2E', oxblood:'#6B1E2A',
@@ -38,8 +40,9 @@ const CTA_BTN = {
 const ABAS = [
   { key:'inicio', label:'Início', emoji:'🏠' },
   { key:'estante', label:'Minha Estante', emoji:'📚' },
-  { key:'agente', label:'B.IA', emoji:'🤖' },
+  { key:'agente', label:'B.IA', emoji:'🤖', avatar:true },
   { key:'adicionar', label:'Adicionar', emoji:'➕' },
+  { key:'estatisticas', label:'Estatísticas', emoji:'📊' },
   { key:'metas', label:'Metas', emoji:'🎯' },
   { key:'love', label:'I ❤️ YOU', emoji:'💝', special:true },
 ];
@@ -139,7 +142,9 @@ export default function App() {
       boxShadow: a.special ? '0 2px 14px rgba(255,45,120,0.5)' : (aba === a.key ? '0 2px 10px rgba(0,0,0,0.3)' : 'none'),
       display:'flex', alignItems:'center', gap:'6px',
     }}>
-      <span className={a.special ? 'heartbeat' : undefined} style={{ fontSize:'14px' }}>{a.emoji}</span>
+      {a.avatar
+        ? <BiaAvatar size={18} />
+        : <span className={a.special ? 'heartbeat' : undefined} style={{ fontSize:'14px' }}>{a.emoji}</span>}
       <span>{a.label}</span>
     </button>
   );
@@ -220,7 +225,9 @@ export default function App() {
                 borderLeft: aba === a.key ? `3px solid ${DA.copper}` : '3px solid transparent',
                 textAlign:'left',
               }}>
-                <span style={{ fontSize:'22px' }}>{a.emoji}</span>
+                {a.avatar
+                  ? <BiaAvatar size={24} />
+                  : <span style={{ fontSize:'22px' }}>{a.emoji}</span>}
                 <span>{a.label}</span>
               </button>
             ))}
@@ -394,6 +401,17 @@ export default function App() {
           </div>
         )}
 
+        {/* ESTATÍSTICAS */}
+        {aba === 'estatisticas' && (
+          <Estatisticas
+            livros={livros}
+            DA={DA}
+            GRAD_BTN={GRAD_BTN}
+            googleBooksKey={import.meta.env.VITE_GOOGLE_BOOKS_API_KEY}
+            onIrParaAdicionar={() => setAba('adicionar')}
+          />
+        )}
+
         {/* METAS */}
         {aba === 'metas' && (
           <div className="page-content" style={{ display:'flex', flexDirection:'column', gap:'20px' }}>
@@ -477,15 +495,33 @@ export default function App() {
         {aba === 'agente' && (
           <div className="page-content" style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <div style={{ textAlign: 'center', background: 'rgba(245,240,224,0.9)', padding: '40px', borderRadius: '20px', boxShadow: PANEL_SHADOW, maxWidth: '600px', backdropFilter: 'blur(12px)' }}>
-              <div style={{ fontSize: '64px', marginBottom: '20px' }}>🤖</div>
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px' }}>
+                <BiaAvatar size={96} style={{ border: `3px solid ${DA.oxblood}`, boxShadow: '0 8px 24px rgba(107,30,42,0.35)' }} />
+              </div>
               <h2 style={{ color: DA.espresso, fontSize: '24px', fontWeight: '900', marginBottom: '16px' }}>B.IA - Sua Agente Literária</h2>
-              <p style={{ color: DA.walnut, lineHeight: '1.6', marginBottom: '24px' }}>
-                Clique no botão flutuante no canto inferior direito para conversar com a B.IA. 
-                Ela conhece toda a sua estante e pode ajudar com recomendações, estatísticas e muito mais!
+              <p style={{ color: DA.walnut, lineHeight: '1.6', marginBottom: '20px' }}>
+                Clique no botão flutuante no canto inferior direito para conversar com a B.IA.
+                Ela conhece toda a sua estante e analisa seu ritmo de leitura.
               </p>
-              <button onClick={() => setAba('estante')} style={CTA_BTN}>
-                Ver Minha Estante
-              </button>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '24px', textAlign: 'left', maxWidth: '380px', margin: '0 auto 24px' }}>
+                {[
+                  '“Quantos livros li por mês?” — análise do seu ritmo',
+                  '“Me recomende um livro” — sugestões pelo seu histórico',
+                  '“Resuma [título]” — busca resumo na Google Books',
+                ].map(exemplo => (
+                  <div key={exemplo} style={{ fontSize: '13px', color: DA.walnut, background: 'rgba(255,255,255,0.55)', borderRadius: '9px', padding: '9px 13px', border: `1px solid ${DA.warmBeige}` }}>
+                    {exemplo}
+                  </div>
+                ))}
+              </div>
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                <button onClick={() => setAba('estatisticas')} style={CTA_BTN}>
+                  📊 Ver Estatísticas
+                </button>
+                <button onClick={() => setAba('estante')} style={{ ...CTA_BTN, background: 'rgba(255,255,255,0.7)', color: DA.espresso, boxShadow: 'none', border: `1px solid ${DA.warmBeige}` }}>
+                  Ver Minha Estante
+                </button>
+              </div>
             </div>
           </div>
         )}
