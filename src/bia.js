@@ -98,11 +98,23 @@ export function montarContexto(livros, ano = new Date().getFullYear()) {
 }
 
 /**
+ * Converte as mensagens do chat no formato que a função espera.
+ * A saudação inicial da B.IA é descartada: é texto fixo do app, não algo que
+ * ela "disse" na conversa, e abriria o histórico com um turno do modelo.
+ */
+export function prepararHistorico(mensagens) {
+  if (!Array.isArray(mensagens)) return [];
+  return mensagens
+    .filter(m => m?.id !== 1 && typeof m?.texto === 'string' && m.texto.trim())
+    .map(m => ({ papel: m.tipo === 'bot' ? 'bot' : 'usuario', texto: m.texto }));
+}
+
+/**
  * Pergunta ao modelo. Devolve null em qualquer falha — chave ausente, cota
  * esgotada, offline, ou rodando em `vite dev` (onde /api não existe).
  * O chamador trata null usando as regras locais, então a B.IA nunca fica muda.
  */
-export async function perguntarAoModelo(pergunta, contexto, { sinal } = {}) {
+export async function perguntarAoModelo(pergunta, contexto, { sinal, historico } = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   if (sinal) sinal.addEventListener('abort', () => controller.abort(), { once: true });
@@ -112,7 +124,7 @@ export async function perguntarAoModelo(pergunta, contexto, { sinal } = {}) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       signal: controller.signal,
-      body: JSON.stringify({ pergunta, contexto }),
+      body: JSON.stringify({ pergunta, contexto, historico: prepararHistorico(historico) }),
     });
 
     if (!res.ok) return null;

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { montarContexto, perguntarAoModelo } from '../bia';
+import { montarContexto, perguntarAoModelo, prepararHistorico } from '../bia';
 
 const acervo = [
   { id: 1, titulo: 'Dom Casmurro', autor: 'Machado de Assis', genero: 'Clássico', status: 'lido', nota: 5, dataTermino: '2026-03-10', paginas: 256 },
@@ -51,6 +51,41 @@ describe('montarContexto', () => {
   });
 });
 
+describe('prepararHistorico', () => {
+  it('descarta a saudação fixa da B.IA (id 1)', () => {
+    const msgs = [
+      { id: 1, tipo: 'bot', texto: 'Saudações. Sou B.IA...' },
+      { id: 2, tipo: 'usuario', texto: 'meu ritmo está bom?' },
+      { id: 3, tipo: 'bot', texto: 'Seu ritmo oscila.' },
+    ];
+    expect(prepararHistorico(msgs)).toEqual([
+      { papel: 'usuario', texto: 'meu ritmo está bom?' },
+      { papel: 'bot', texto: 'Seu ritmo oscila.' },
+    ]);
+  });
+
+  it('mantém a alternância usuario/bot na ordem original', () => {
+    const msgs = [
+      { id: 1, tipo: 'bot', texto: 'oi' },
+      { id: 2, tipo: 'usuario', texto: 'p1' },
+      { id: 3, tipo: 'bot', texto: 'r1' },
+      { id: 4, tipo: 'usuario', texto: 'p2' },
+      { id: 5, tipo: 'bot', texto: 'r2' },
+    ];
+    expect(prepararHistorico(msgs).map(m => m.papel)).toEqual(['usuario', 'bot', 'usuario', 'bot']);
+  });
+
+  it('ignora mensagens vazias e entradas inválidas', () => {
+    expect(prepararHistorico([{ id: 2, tipo: 'usuario', texto: '   ' }])).toEqual([]);
+    expect(prepararHistorico(null)).toEqual([]);
+    expect(prepararHistorico(undefined)).toEqual([]);
+  });
+
+  it('devolve lista vazia quando só existe a saudação (primeira pergunta)', () => {
+    expect(prepararHistorico([{ id: 1, tipo: 'bot', texto: 'Saudações.' }])).toEqual([]);
+  });
+});
+
 describe('perguntarAoModelo', () => {
   afterEach(() => { vi.unstubAllGlobals(); });
 
@@ -60,6 +95,34 @@ describe('perguntarAoModelo', () => {
       json: async () => ({ texto: 'Sua taxa de abandono merece exame.' }),
     }));
     await expect(perguntarAoModelo('e aí?', 'ctx')).resolves.toBe('Sua taxa de abandono merece exame.');
+  });
+
+  it('envia o histórico no corpo da requisição', async () => {
+    const espiao = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ texto: 'ok' }) });
+    vi.stubGlobal('fetch', espiao);
+
+    await perguntarAoModelo('e daí?', 'ctx', {
+      historico: [
+        { id: 1, tipo: 'bot', texto: 'Saudações.' },
+        { id: 2, tipo: 'usuario', texto: 'meu ritmo está bom?' },
+        { id: 3, tipo: 'bot', texto: 'Seu ritmo oscila.' },
+      ],
+    });
+
+    const corpo = JSON.parse(espiao.mock.calls[0][1].body);
+    expect(corpo.pergunta).toBe('e daí?');
+    // Sem isto o modelo não teria como responder a um seguimento como "e daí?".
+    expect(corpo.historico).toEqual([
+      { papel: 'usuario', texto: 'meu ritmo está bom?' },
+      { papel: 'bot', texto: 'Seu ritmo oscila.' },
+    ]);
+  });
+
+  it('manda histórico vazio quando não há conversa anterior', async () => {
+    const espiao = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ texto: 'ok' }) });
+    vi.stubGlobal('fetch', espiao);
+    await perguntarAoModelo('primeira pergunta', 'ctx');
+    expect(JSON.parse(espiao.mock.calls[0][1].body).historico).toEqual([]);
   });
 
   // Cada caso abaixo precisa cair no fallback de regras em vez de quebrar o chat.

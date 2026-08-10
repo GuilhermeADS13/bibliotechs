@@ -101,7 +101,11 @@ export function LiteraryAgent({ livros, DA, GRAD_BTN, googleBooksKey }) {
       || p.includes('sugest') || p.includes('o que ler') || p.includes('que eu leio');
 
     if (!precisaBuscaExterna) {
-      const doModelo = await perguntarAoModelo(pergunta, montarContexto(livros));
+      // `mensagens` ainda não inclui a pergunta atual (o React só aplica o
+      // estado no próximo render), então é exatamente o histórico anterior.
+      const doModelo = await perguntarAoModelo(pergunta, montarContexto(livros), {
+        historico: mensagens,
+      });
       if (doModelo) return doModelo;
     }
 

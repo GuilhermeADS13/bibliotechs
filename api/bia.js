@@ -24,6 +24,9 @@ const MODELO_PADRAO = 'gemini-3.5-flash-lite';
 // barram o caso trivial e evitam pagar banda por payloads absurdos.
 const MAX_PERGUNTA = 2000;
 const MAX_CONTEXTO = 20000;
+// Turnos anteriores enviados ao modelo. Alto o bastante para sustentar uma
+// conversa real, baixo o bastante para o custo em tokens não crescer sem teto.
+const MAX_HISTORICO = 10;
 
 const TIMEOUT_MS = 20000;
 
@@ -38,7 +41,7 @@ export default async function handler(req, res) {
     return res.status(503).json({ erro: 'sem-chave' });
   }
 
-  const { pergunta, contexto } = req.body || {};
+  const { pergunta, contexto, historico } = req.body || {};
 
   if (typeof pergunta !== 'string' || !pergunta.trim()) {
     return res.status(400).json({ erro: 'pergunta-vazia' });
@@ -51,11 +54,7 @@ export default async function handler(req, res) {
   }
 
   const modelo = process.env.BIA_MODEL || MODELO_PADRAO;
-
-  // A instrução vai dentro do próprio turno do usuário em vez de usar
-  // systemInstruction: os modelos Gemma não têm papel de sistema, e desta forma
-  // o mesmo código funciona com Gemma e com Gemini.
-  const prompt = [montarInstrucao(contexto), '', `Pergunta do leitor: ${pergunta}`].join('\n');
+  const contents = montarContents({ pergunta, contexto, historico });
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
@@ -68,7 +67,7 @@ export default async function handler(req, res) {
         headers: { 'Content-Type': 'application/json' },
         signal: controller.signal,
         body: JSON.stringify({
-          contents: [{ role: 'user', parts: [{ text: prompt }] }],
+          contents,
           // Orçamento folgado porque os tokens de raciocínio saem daqui: com 200
           // o gemini-3.6-flash gastava tudo pensando e a resposta vinha cortada.
           generationConfig: { temperature: 0.7, maxOutputTokens: 2048 },
@@ -115,14 +114,87 @@ export default async function handler(req, res) {
   }
 }
 
+/**
+ * Monta a conversa completa para o modelo.
+ *
+ * Sem o histórico aqui, cada pergunta chegava isolada: o modelo não lembrava do
+ * que já tinha dito, não respondia a "por quê?" e reincidia nos mesmos temas a
+ * cada turno, porque partia sempre do mesmo contexto. Não era conversa.
+ *
+ * O formato exige alternância estrita user/model começando por user, então a
+ * instrução vai no primeiro turno com um "ok" do modelo logo em seguida.
+ */
+function montarContents({ pergunta, contexto, historico }) {
+  const contents = [
+    { role: 'user', parts: [{ text: montarInstrucao(contexto) }] },
+    { role: 'model', parts: [{ text: 'Entendido. Vou analisar a partir desses dados.' }] },
+  ];
+
+  if (Array.isArray(historico)) {
+    // Só os últimos turnos: o limite existe para o custo em tokens não crescer
+    // sem teto ao longo de uma conversa longa.
+    const recentes = historico.slice(-MAX_HISTORICO);
+    let esperado = 'user';
+    for (const msg of recentes) {
+      const papel = msg?.papel === 'bot' ? 'model' : 'user';
+      const texto = typeof msg?.texto === 'string' ? msg.texto.slice(0, MAX_PERGUNTA) : '';
+      if (!texto.trim()) continue;
+      // Descarta o que quebraria a alternância — a API rejeita dois turnos
+      // seguidos do mesmo papel.
+      if (papel !== esperado) continue;
+      contents.push({ role: papel, parts: [{ text: texto }] });
+      esperado = papel === 'user' ? 'model' : 'user';
+    }
+    // O último turno tem de ser do modelo para a pergunta atual entrar depois.
+    if (contents[contents.length - 1].role === 'user') contents.pop();
+  }
+
+  contents.push({ role: 'user', parts: [{ text: pergunta }] });
+  return contents;
+}
+
 function montarInstrucao(contexto) {
-  return [
+  const temDados = typeof contexto === 'string' && contexto.trim().length > 0;
+
+  const base = [
     'Você é a B.IA, agente literária do app bibliotech. Seu tom é analítico e',
-    'crítico, sem bajulação: você questiona padrões de leitura em vez de elogiá-los.',
+    'direto, sem bajulação: você examina padrões de leitura em vez de só elogiá-los.',
     'Responda em português do Brasil, em no máximo dois parágrafos curtos.',
     '',
-    'Vá direto à análise. Nada de saudação ("Olá", "Oi"), de anunciar seu papel',
+    'Vá direto ao ponto. Nada de saudação ("Olá", "Oi"), de anunciar seu papel',
     '("como sua agente literária...") ou de repetir a pergunta antes de responder.',
+    '',
+    'LIMITE DA CRÍTICA: critique escolhas, hábitos e padrões de leitura — nunca a',
+    'pessoa. Não faça juízo de caráter, inteligência ou valor pessoal a partir da',
+    'estante. Proibido: chamar o leitor de preguiçoso, passivo, superficial ou',
+    'pretensioso, dizer que ele perde seu tempo, ou sugerir que não deveria estar',
+    'ali. Ser exigente é apontar o que os dados mostram e o que fazer com isso;',
+    'não é hostilizar quem pergunta.',
+    '',
+    'CONVERSA: você recebe os turnos anteriores. Leve-os em conta — responda ao',
+    'que foi perguntado agora, sem repetir análises que já deu. Se a pergunta é um',
+    'seguimento ("por quê?", "e daí?"), continue o raciocínio anterior em vez de',
+    'recomeçar do zero.',
+  ];
+
+  if (!temDados) {
+    // Sem dado nenhum não há padrão a analisar, e o modelo tende a preencher o
+    // vazio atacando quem perguntou — foi o que aconteceu na prática.
+    return base.concat([
+      '',
+      'SITUAÇÃO ATUAL: a estante está vazia — nenhum livro cadastrado. Isso é o',
+      'estado normal de quem acabou de chegar, não uma falha do leitor, e não deve',
+      'ser criticado em hipótese alguma.',
+      '',
+      'Sem dados você não tem o que analisar, então: responda a pergunta de forma',
+      'útil e breve, deixe claro que sua análise depende de livros cadastrados, e',
+      'diga em uma frase o que você conseguirá fazer quando houver alguns (ritmo',
+      'mensal, gêneros dominantes, recomendações pelo histórico). Convide a',
+      'cadastrar o primeiro livro na aba Adicionar. Tom acolhedor e objetivo.',
+    ]).join('\n');
+  }
+
+  return base.concat([
     '',
     'REGRA CRÍTICA SOBRE NÚMEROS: todos os dados abaixo foram calculados pelo',
     'aplicativo e são exatos. Use apenas esses números. Nunca invente, estime ou',
@@ -130,7 +202,7 @@ function montarInstrucao(contexto) {
     'que não tem esse dado em vez de deduzi-lo.',
     '',
     '--- DADOS DA ESTANTE (exatos) ---',
-    typeof contexto === 'string' && contexto.trim() ? contexto : '(estante vazia)',
+    contexto,
     '--- FIM DOS DADOS ---',
-  ].join('\n');
+  ]).join('\n');
 }
