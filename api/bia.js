@@ -9,7 +9,9 @@ const AI_STUDIO_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
 
 // Gemma e Gemini são servidos pela mesma chave. Trocar de modelo é trocar esta
 // variável de ambiente no painel do Vercel — nenhuma alteração de código.
-const MODELO_PADRAO = 'gemini-2.5-flash';
+// Testado nesta chave: gemini-3.6-flash e gemma-4-31b-it respondem bem.
+// (gemini-2.5-flash foi descontinuado para novas chaves e devolve 404.)
+const MODELO_PADRAO = 'gemini-3.6-flash';
 
 // O endpoint fica público assim que o site sobe: qualquer um pode chamá-lo e
 // consumir a cota gratuita. Estes limites não impedem abuso determinado, mas
@@ -61,7 +63,9 @@ export default async function handler(req, res) {
         signal: controller.signal,
         body: JSON.stringify({
           contents: [{ role: 'user', parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.7, maxOutputTokens: 800 },
+          // Orçamento folgado porque os tokens de raciocínio saem daqui: com 200
+          // o gemini-3.6-flash gastava tudo pensando e a resposta vinha cortada.
+          generationConfig: { temperature: 0.7, maxOutputTokens: 2048 },
         }),
       }
     );
@@ -78,8 +82,12 @@ export default async function handler(req, res) {
     }
 
     const dados = await resposta.json();
+    // Descartar as parts marcadas com `thought`: o Gemma devolve o rascunho como
+    // primeira part (a instrução reescrita em inglês) e a resposta real como
+    // segunda. Sem este filtro, o rascunho apareceria no chat.
     const texto = dados?.candidates?.[0]?.content?.parts
-      ?.map(p => p?.text || '')
+      ?.filter(p => p?.thought !== true)
+      .map(p => p?.text || '')
       .join('')
       .trim();
 
