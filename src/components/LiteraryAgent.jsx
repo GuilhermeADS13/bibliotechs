@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { calcularEstatisticas, resumoMensalTexto, MESES_LONGOS } from '../estatisticas';
 import { gerarRecomendacoes } from '../recomendacoes';
+import { montarContexto, perguntarAoModelo } from '../bia';
 import { BiaAvatar } from './BiaAvatar';
 
 export function LiteraryAgent({ livros, DA, GRAD_BTN, googleBooksKey }) {
@@ -82,8 +83,33 @@ export function LiteraryAgent({ livros, DA, GRAD_BTN, googleBooksKey }) {
     return stats;
   };
 
-  // Gerar resposta com tom crítico e analítico
+  /**
+   * Roteia a pergunta.
+   *
+   * Resumo e recomendação continuam determinísticos: dependem de uma busca na
+   * Google Books e já produzem uma resposta bem formatada — passar pelo modelo
+   * só acrescentaria risco de alucinação sobre dados que já temos corretos.
+   * Todo o resto vai ao modelo, que é justamente o que destrava perguntas fora
+   * da lista de palavras-chave. Se ele não responder (sem chave, cota esgotada,
+   * offline, ou rodando em `vite dev`), caímos nas regras locais.
+   */
   const gerarRespostaAgente = async (pergunta) => {
+    const p = pergunta.toLowerCase();
+    const precisaBuscaExterna =
+      p.includes('resumo') || p.includes('resuma') || p.includes('resumir') || p.includes('análise')
+      || p.includes('recomend') || p.includes('próximo') || p.includes('proximo')
+      || p.includes('sugest') || p.includes('o que ler') || p.includes('que eu leio');
+
+    if (!precisaBuscaExterna) {
+      const doModelo = await perguntarAoModelo(pergunta, montarContexto(livros));
+      if (doModelo) return doModelo;
+    }
+
+    return responderComRegras(pergunta);
+  };
+
+  // Motor de regras original — agora o fallback, não o caminho principal.
+  const responderComRegras = async (pergunta) => {
     const contexto = prepararContextoEstante();
     const perguntaLower = pergunta.toLowerCase();
     let resposta = '';
@@ -232,19 +258,23 @@ export function LiteraryAgent({ livros, DA, GRAD_BTN, googleBooksKey }) {
     setEntrada('');
     setCarregando(true);
 
-    setTimeout(async () => {
-      const respostaTexto = await gerarRespostaAgente(entrada);
-      
-      const novaMensagemBot = {
-        id: Date.now() + 1,
-        tipo: 'bot',
-        texto: respostaTexto,
-        timestamp: new Date()
-      };
+    // Antes havia um setTimeout de 1,2s simulando "pensamento". Agora a espera
+    // é real (rede + modelo), então o atraso artificial só somaria latência.
+    let respostaTexto;
+    try {
+      respostaTexto = await gerarRespostaAgente(entrada);
+    } catch (e) {
+      console.error('Falha ao gerar resposta da B.IA:', e);
+      respostaTexto = 'Houve uma falha ao processar sua pergunta. Tente novamente.';
+    }
 
-      setMensagens(prev => [...prev, novaMensagemBot]);
-      setCarregando(false);
-    }, 1200);
+    setMensagens(prev => [...prev, {
+      id: Date.now() + 1,
+      tipo: 'bot',
+      texto: respostaTexto,
+      timestamp: new Date(),
+    }]);
+    setCarregando(false);
   };
 
   const handleKeyPress = (e) => {
