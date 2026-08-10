@@ -5,7 +5,7 @@ export function LiteraryAgent({ livros, DA, GRAD_BTN, googleBooksKey }) {
     {
       id: 1,
       tipo: 'bot',
-      texto: 'Saudações. Sou seu Crítico Literário Analítico 🧐. Minha função não é apenas catalogar, mas dissecar sua estante com rigor. Estou conectado à internet para buscar resumos e análises profundas. O que vamos analisar hoje?',
+      texto: 'Saudações. Sou B.IA, sua Agente Literária Analítica 🧐. Minha função não é apenas catalogar, mas dissecar sua estante com rigor. Estou conectada à internet para buscar resumos e análises profundas. O que vamos analisar hoje?',
       timestamp: new Date()
     }
   ]);
@@ -86,28 +86,35 @@ export function LiteraryAgent({ livros, DA, GRAD_BTN, googleBooksKey }) {
     let resposta = '';
 
     // FUNCIONALIDADE: Resumo com dados da internet
-    if (perguntaLower.includes('resumo') || perguntaLower.includes('resumir') || perguntaLower.includes('análise')) {
-      // Tentar encontrar na estante local
-      let livroParaResumir = livros.find(l => 
-        perguntaLower.includes(l.titulo.toLowerCase()) || 
-        (l.autor && perguntaLower.includes(l.autor.toLowerCase()))
-      );
+    const isResumo = perguntaLower.includes('resumo') || perguntaLower.includes('resuma') || perguntaLower.includes('resumir') || perguntaLower.includes('análise');
+    
+    // Tom Crítico para Estatísticas (Prioridade sobre Resumo se contiver palavras-chave)
+    const isStats = perguntaLower.includes('estatístic') || perguntaLower.includes('quantos');
 
-      // Se não encontrar, extrair título e autor da pergunta
+    if (isStats) {
+      const taxaAbandono = (contexto.abandonei / contexto.totalLivros * 100).toFixed(1);
+      resposta = `Seus dados quantitativos revelam um acervo de ${contexto.totalLivros} unidades. Analiticamente, sua taxa de conclusão é de ${(contexto.lidos / contexto.totalLivros * 100).toFixed(1)}%. O fato de você ter ${contexto.abandonei} abandonos (${taxaAbandono}%) sugere um filtro crítico rigoroso ou inconsistência na seleção. Qual dessas hipóteses você sustenta?`;
+    } 
+    else if (isResumo) {
+      // Tentar extrair título e autor da pergunta primeiro
       let tituloExtraido = '';
       let autorExtraido = '';
       
-      if (!livroParaResumir) {
-        // Tentar extrair "resumo de [Título] de [Autor]"
-        const match = pergunta.match(/(?:resumo|análise)(?:\s+de)?\s+['""]?([^'""\n]+?)['""]?(?:\s+de\s+([^,\n]+))?/i);
-        if (match) {
-          tituloExtraido = match[1].trim();
-          autorExtraido = match[2]?.trim() || '';
-        }
+      // Regex melhorada para capturar o que vem depois das palavras-chave
+      const match = pergunta.match(/(?:resumo|resuma|resumir|análise)\s+['""]?([^'""\n]+?)['""]?(?:\s+de\s+([^,\n]+))?$/i);
+      if (match) {
+        tituloExtraido = match[1].trim();
+        autorExtraido = match[2]?.trim() || '';
       }
 
-      const titulo = livroParaResumir?.titulo || tituloExtraido;
-      const autor = livroParaResumir?.autor || autorExtraido;
+      // Tentar encontrar na estante local para complementar dados
+      let livroParaResumir = livros.find(l => 
+        (tituloExtraido && l.titulo.toLowerCase().includes(tituloExtraido.toLowerCase())) ||
+        perguntaLower.includes(l.titulo.toLowerCase())
+      );
+
+      const titulo = tituloExtraido || livroParaResumir?.titulo;
+      const autor = autorExtraido || livroParaResumir?.autor;
 
       if (!titulo) {
         resposta = `Você solicitou uma análise, mas não identifiquei uma obra específica. Por favor, especifique: "Resuma o livro [Título]" ou "Análise de [Título] de [Autor]".`;
@@ -142,11 +149,7 @@ export function LiteraryAgent({ livros, DA, GRAD_BTN, googleBooksKey }) {
       const generosMaisLidos = contexto.generos.slice(0, 2).join(', ');
       resposta = `Observo uma saturação no gênero ${generosMaisLidos || 'ficção'} em sua estante. Para elevar seu repertório analiticamente, sugiro uma ruptura: procure obras que subvertam essas convenções. Dada a sua tendência a avaliar positivamente autores de ${contexto.generos[0] || 'estilos similares'}, um movimento em direção a clássicos contemporâneos seria uma escolha superior.`;
     } 
-    // Tom Crítico para Estatísticas
-    else if (perguntaLower.includes('estatístic') || perguntaLower.includes('quantos')) {
-      const taxaAbandono = (contexto.abandonei / contexto.totalLivros * 100).toFixed(1);
-      resposta = `Seus dados quantitativos revelam um acervo de ${contexto.totalLivros} unidades. Analiticamente, sua taxa de conclusão é de ${(contexto.lidos / contexto.totalLivros * 100).toFixed(1)}%. O fato de você ter ${contexto.abandonei} abandonos (${taxaAbandono}%) sugere um filtro crítico rigoroso ou inconsistência na seleção. Qual dessas hipóteses você sustenta?`;
-    }
+
     // Resposta Padrão Analítica
     else {
       resposta = `Sua indagação sobre "${pergunta}" requer análise cuidadosa. Considerando sua estante de ${contexto.totalLivros} obras, percebo padrões de consumo que merecem escrutínio. Você deseja uma análise de tendências, um resumo técnico de uma obra específica ou uma crítica sobre suas metas?`;
@@ -221,7 +224,7 @@ export function LiteraryAgent({ livros, DA, GRAD_BTN, googleBooksKey }) {
           e.currentTarget.style.transform = 'scale(1)';
           e.currentTarget.style.boxShadow = '0 4px 20px rgba(107,30,42,0.4)';
         }}
-        title="Abrir Crítico Literário"
+        title="Abrir B.IA"
       >
         🧐
       </button>
@@ -261,7 +264,7 @@ export function LiteraryAgent({ livros, DA, GRAD_BTN, googleBooksKey }) {
           fontSize: '15px',
         }}
       >
-        <span>🧐 Crítico Analítico (Online)</span>
+        <span>🧐 B.IA (Online)</span>
         <button
           onClick={() => setExpandido(false)}
           style={{
