@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { db } from '../firebase';
 import {
-  collection, query, where, orderBy, onSnapshot,
+  collection, query, where, onSnapshot,
   doc, setDoc, deleteDoc, serverTimestamp,
 } from 'firebase/firestore';
 
@@ -69,11 +69,11 @@ export function useConversas(user) {
       return;
     }
 
-    const q = query(
-      collection(db, 'conversas'),
-      where('uid', '==', user.uid),
-      orderBy('dia', 'desc')
-    );
+    // Sem `orderBy`: combinar where('uid') com orderBy('dia') exige um índice
+    // composto no Firestore. Sem o índice a consulta falha inteira e nenhuma
+    // conversa carrega — foi o que aconteceu. São poucos documentos (um por
+    // dia), então a ordenação sai de graça no cliente.
+    const q = query(collection(db, 'conversas'), where('uid', '==', user.uid));
 
     const unsub = onSnapshot(
       q,

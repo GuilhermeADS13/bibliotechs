@@ -4,7 +4,9 @@ import { renderHook, act, waitFor } from '@testing-library/react';
 // O hook importa ../firebase, que inicializa o app real; o mock evita isso.
 vi.mock('../firebase', () => ({ db: {} }));
 vi.mock('firebase/firestore', () => ({
-  collection: vi.fn(), query: vi.fn(), where: vi.fn(), orderBy: vi.fn(),
+  collection: vi.fn(), query: vi.fn(), where: vi.fn(),
+  // orderBy fica exposto no mock só para o teste provar que NÃO é usado.
+  orderBy: vi.fn(),
   onSnapshot: vi.fn(() => () => {}),
   doc: vi.fn(), setDoc: vi.fn(async () => {}), deleteDoc: vi.fn(async () => {}),
   serverTimestamp: vi.fn(() => 'ts'),
@@ -122,6 +124,20 @@ describe('useConversas sem login (localStorage)', () => {
 });
 
 describe('useConversas com login (Firestore)', () => {
+  // A consulta original combinava where('uid') com orderBy('dia'), o que exige
+  // um índice composto. Sem o índice a consulta falha inteira e NENHUMA conversa
+  // carrega — o usuário saía e voltava e não encontrava nada.
+  it('não usa orderBy, que exigiria índice composto', async () => {
+    const { orderBy, where } = await import('firebase/firestore');
+    orderBy.mockClear();
+    where.mockClear();
+
+    renderHook(() => useConversas({ uid: 'user123' }));
+
+    expect(where).toHaveBeenCalledWith('uid', '==', 'user123');
+    expect(orderBy).not.toHaveBeenCalled();
+  });
+
   it('grava no documento <uid>_<dia>, que é o formato exigido pela regra', async () => {
     const { doc, setDoc } = await import('firebase/firestore');
     const { result } = renderHook(() => useConversas({ uid: 'user123' }));

@@ -15,6 +15,8 @@ import { bookPlaceholder } from './placeholder';
 import { LiteraryAgent } from './components/LiteraryAgent';
 import { Estatisticas } from './components/Estatisticas';
 import { BiaAvatar } from './components/BiaAvatar';
+import { HistoricoConversas } from './components/HistoricoConversas';
+import { useConversas } from './hooks/useConversas';
 import { ritmoMeta } from './estatisticas';
 
 const DA = {
@@ -73,6 +75,15 @@ export default function App() {
   const [navMobile, setNavMobile]       = useState(false);
 
   const { livros, loading, adicionar, atualizar, remover } = useLivros(user);
+  // O hook vive aqui, não dentro do chat: a aba da B.IA e o widget flutuante
+  // precisam enxergar a mesma coisa, e duas instâncias criariam dois listeners
+  // com estados que divergem.
+  const {
+    conversas,
+    carregando: carregandoConversas,
+    salvar: salvarConversa,
+    apagarDia,
+  } = useConversas(user);
 
   useEffect(() => {
     completeRedirectLogin();
@@ -522,8 +533,8 @@ export default function App() {
 
         {/* B.IA */}
         {aba === 'agente' && (
-          <div className="page-content" style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <div style={{ textAlign: 'center', background: 'rgba(245,240,224,0.9)', padding: '40px', borderRadius: '20px', boxShadow: PANEL_SHADOW, maxWidth: '600px', backdropFilter: 'blur(12px)' }}>
+          <div className="page-content" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
+            <div style={{ textAlign: 'center', background: 'rgba(245,240,224,0.9)', padding: '40px', borderRadius: '20px', boxShadow: PANEL_SHADOW, maxWidth: '600px', width: '100%', backdropFilter: 'blur(12px)' }}>
               <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px' }}>
                 <BiaAvatar size={96} style={{ border: `3px solid ${DA.oxblood}`, boxShadow: '0 8px 24px rgba(107,30,42,0.35)' }} />
               </div>
@@ -552,6 +563,18 @@ export default function App() {
                 </button>
               </div>
             </div>
+
+            {/* Conversas guardadas. Ficam aqui porque o widget flutuante é
+                estreito demais para reler uma conversa inteira. */}
+            <div style={{ maxWidth: '600px', width: '100%' }}>
+              <HistoricoConversas
+                conversas={conversas}
+                carregando={carregandoConversas}
+                onApagar={apagarDia}
+                DA={DA}
+                user={user}
+              />
+            </div>
           </div>
         )}
       </div>
@@ -570,7 +593,9 @@ export default function App() {
       {/* AGENTE LITERÁRIO FLUTUANTE */}
       <LiteraryAgent
         livros={livros}
-        user={user}
+        conversas={conversas}
+        onSalvarConversa={salvarConversa}
+        onApagarDia={apagarDia}
         DA={DA}
         GRAD_BTN={GRAD_BTN}
         googleBooksKey={import.meta.env.VITE_GOOGLE_BOOKS_API_KEY}

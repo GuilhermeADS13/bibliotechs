@@ -6,7 +6,7 @@ import {
   identificarLivroMencionado, contextoDoLivro,
 } from '../bia';
 import { BiaAvatar } from './BiaAvatar';
-import { useConversas, diaDeHoje, rotularDia } from '../hooks/useConversas';
+import { diaDeHoje, rotularDia } from '../hooks/useConversas';
 
 const SAUDACAO = {
   id: 1,
@@ -15,8 +15,11 @@ const SAUDACAO = {
   timestamp: new Date(),
 };
 
-export function LiteraryAgent({ livros, user, DA, GRAD_BTN, googleBooksKey }) {
-  const { conversas, salvar, apagarDia } = useConversas(user);
+export function LiteraryAgent({
+  livros, conversas = {}, onSalvarConversa, onApagarDia, DA, GRAD_BTN, googleBooksKey,
+}) {
+  const salvar = onSalvarConversa || (() => {});
+  const apagarDia = onApagarDia || (() => {});
   const [mensagens, setMensagens] = useState([SAUDACAO]);
   const [entrada, setEntrada] = useState('');
   const [carregando, setCarregando] = useState(false);
