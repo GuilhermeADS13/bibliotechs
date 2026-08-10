@@ -149,6 +149,39 @@ export function calcularEstatisticas(livros, ano = new Date().getFullYear()) {
   };
 }
 
+/**
+ * Ritmo necessário para fechar a meta anual.
+ * Responde "quantos preciso ler por mês daqui até dezembro?" — a pergunta que
+ * a aba Metas existe para responder, e que o gráfico mensal não respondia.
+ */
+export function ritmoMeta(lidosNoAno, meta, hoje = new Date()) {
+  const alvo = Math.max(0, Number(meta) || 0);
+  const feitos = Math.max(0, Number(lidosNoAno) || 0);
+  const restantes = Math.max(0, alvo - feitos);
+  const cumprida = alvo > 0 && feitos >= alvo;
+
+  // O mês corrente conta como disponível: ainda dá para ler nele.
+  const mesesRestantes = 12 - hoje.getMonth();
+  const mesesDecorridos = hoje.getMonth() + 1;
+
+  const ritmoAtual = Number((feitos / mesesDecorridos).toFixed(1));
+  const projecao = Math.round(ritmoAtual * 12);
+  const porMes = restantes > 0 ? Number((restantes / mesesRestantes).toFixed(1)) : 0;
+
+  return {
+    meta: alvo,
+    feitos,
+    restantes,
+    cumprida,
+    mesesRestantes,
+    ritmoAtual,
+    projecao,
+    porMes,
+    // "No ritmo" compara a projeção do ano inteiro com a meta.
+    noRitmo: cumprida || projecao >= alvo,
+  };
+}
+
 // Resumo em texto para a B.IA comentar o ritmo mensal.
 export function resumoMensalTexto(stats) {
   if (stats.totalNoAno === 0) {

@@ -15,6 +15,7 @@ import { bookPlaceholder } from './placeholder';
 import { LiteraryAgent } from './components/LiteraryAgent';
 import { Estatisticas } from './components/Estatisticas';
 import { BiaAvatar } from './components/BiaAvatar';
+import { ritmoMeta } from './estatisticas';
 
 const DA = {
   mustard:'#C49A22', burntOrange:'#C4612A', brickRed:'#9E3D2E', oxblood:'#6B1E2A',
@@ -104,6 +105,7 @@ export default function App() {
   const abandonei  = livros.filter(l => l.status === 'abandonei');
   const lidosAno   = lidos.filter(l => l.dataTermino?.startsWith(String(ano)));
   const pctMeta    = Math.min(100, Math.round((lidosAno.length / metaAnual) * 100));
+  const ritmo      = ritmoMeta(lidosAno.length, metaAnual);
 
   const livrosFiltrados = livros.filter(l => {
     const q  = busca.toLowerCase();
@@ -409,6 +411,7 @@ export default function App() {
             GRAD_BTN={GRAD_BTN}
             googleBooksKey={import.meta.env.VITE_GOOGLE_BOOKS_API_KEY}
             onIrParaAdicionar={() => setAba('adicionar')}
+            onIrParaMetas={() => setAba('metas')}
           />
         )}
 
@@ -444,24 +447,50 @@ export default function App() {
               </div>
             </div>
 
+            {/* Ritmo necessário para fechar a meta — a análise mês a mês fica na aba Estatísticas */}
             <div style={{ background:GLASS_PANEL, borderRadius:'20px', padding:'30px', boxShadow:PANEL_SHADOW, border:'1px solid rgba(196,154,108,0.4)', backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)' }}>
-              <h3 style={{ fontWeight:'800', fontSize:'16px', color:DA.espresso, marginBottom:'22px' }}>📅 Leituras por Mês ({ano})</h3>
-              <div style={{ display:'flex', gap:'8px', alignItems:'flex-end', height:'110px' }}>
-                {Array.from({ length:12 }, (_,i) => {
-                  const mes   = String(i+1).padStart(2,'0');
-                  const count = lidos.filter(l => l.dataTermino?.startsWith(`${ano}-${mes}`)).length;
-                  const max   = Math.max(1,...Array.from({length:12},(_,j)=>lidos.filter(l=>l.dataTermino?.startsWith(`${ano}-${String(j+1).padStart(2,'0')}`)).length));
-                  const h     = count ? Math.max(14,(count/max)*90) : 5;
-                  const MESES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-                  return (
-                    <div key={i} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:'4px' }}>
-                      <span style={{ fontSize:'10px', color:DA.oxblood, fontWeight:'800' }}>{count||''}</span>
-                      <div style={{ width:'100%', height:`${h}px`, borderRadius:'5px 5px 0 0', background:count?`linear-gradient(180deg,${DA.mustard},${DA.burntOrange},${DA.oxblood})`:`${DA.warmBeige}55`, transition:'height .4s ease' }} />
-                      <span style={{ fontSize:'9px', color:DA.warmBeige, fontWeight:'700' }}>{MESES[i]}</span>
-                    </div>
-                  );
-                })}
-              </div>
+              <h3 style={{ fontWeight:'800', fontSize:'16px', color:DA.espresso, marginBottom:'18px' }}>⏱️ Seu ritmo</h3>
+
+              {ritmo.cumprida ? (
+                <div style={{ textAlign:'center', padding:'12px 0 4px' }}>
+                  <div style={{ fontSize:'40px', marginBottom:'8px' }}>🎉</div>
+                  <p style={{ fontSize:'16px', fontWeight:'800', color:DA.forestGreen, marginBottom:'4px' }}>Meta de {ano} cumprida!</p>
+                  <p style={{ fontSize:'13px', color:DA.walnut, opacity:0.85 }}>
+                    Você leu {ritmo.feitos} de {ritmo.meta} livros. Que tal aumentar a meta?
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="stats-grid" style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'12px', marginBottom:'16px' }}>
+                    {[
+                      { valor: ritmo.restantes, rotulo: 'Faltam', sub: `para os ${ritmo.meta}`, cor: DA.oxblood },
+                      { valor: ritmo.porMes, rotulo: 'Por mês', sub: `em ${ritmo.mesesRestantes} ${ritmo.mesesRestantes === 1 ? 'mês' : 'meses'}`, cor: DA.burntOrange },
+                      { valor: ritmo.projecao, rotulo: 'Projeção', sub: `no ritmo atual`, cor: ritmo.noRitmo ? DA.forestGreen : DA.warmBurgundy },
+                    ].map(c => (
+                      <div key={c.rotulo} style={{ background:`${c.cor}18`, border:`1px solid ${c.cor}44`, borderRadius:'12px', padding:'16px', textAlign:'center' }}>
+                        <div style={{ fontSize:'26px', fontWeight:'900', color:c.cor, lineHeight:1.1 }}>{c.valor}</div>
+                        <div style={{ fontSize:'11px', color:c.cor, fontWeight:'700', marginTop:'4px' }}>{c.rotulo}</div>
+                        <div style={{ fontSize:'10px', color:DA.walnut, opacity:0.7, marginTop:'2px' }}>{c.sub}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <p style={{ fontSize:'13px', color:DA.walnut, textAlign:'center', fontWeight:'600', lineHeight:1.5 }}>
+                    {ritmo.feitos === 0
+                      ? `Nenhum livro concluído em ${ano} ainda. Comece por um: são ${ritmo.porMes} por mês até dezembro.`
+                      : ritmo.noRitmo
+                        ? `✅ Você está no ritmo — lendo ${ritmo.ritmoAtual}/mês, deve fechar o ano com ${ritmo.projecao}.`
+                        : `⚠️ Seu ritmo atual é ${ritmo.ritmoAtual}/mês. Para bater a meta, precisa subir para ${ritmo.porMes}/mês.`}
+                  </p>
+                </>
+              )}
+
+              <button onClick={() => setAba('estatisticas')} style={{
+                marginTop:'18px', width:'100%', background:'none', border:`1px dashed ${DA.warmBeige}`,
+                borderRadius:'10px', padding:'11px', cursor:'pointer', fontWeight:'700',
+                fontSize:'13px', color:DA.oxblood, fontFamily:'inherit',
+              }}>
+                📊 Ver análise mês a mês em Estatísticas →
+              </button>
             </div>
 
             {lidosAno.length > 0 && (

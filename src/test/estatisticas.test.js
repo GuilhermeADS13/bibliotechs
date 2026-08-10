@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calcularEstatisticas, resumoMensalTexto, anosDisponiveis, mesDoLivro, anoDoLivro } from '../estatisticas';
+import { calcularEstatisticas, resumoMensalTexto, anosDisponiveis, mesDoLivro, anoDoLivro, ritmoMeta } from '../estatisticas';
 
 const acervo = [
   { id: 1, titulo: 'A', status: 'lido', nota: 5, genero: 'Ficção', autor: 'Ana', paginas: 300, dataTermino: '2026-01-15' },
@@ -82,5 +82,55 @@ describe('estatisticas', () => {
   it('avisa quando não há registros no ano', () => {
     const texto = resumoMensalTexto(calcularEstatisticas(acervo, 2020));
     expect(texto).toMatch(/Não há registros de conclusão em 2020/);
+  });
+});
+
+describe('ritmoMeta', () => {
+  const junho = new Date(2026, 5, 15); // mês 5 = junho, 7 meses restantes
+
+  it('calcula quantos faltam e o ritmo mensal necessário', () => {
+    const r = ritmoMeta(6, 20, junho);
+    expect(r.restantes).toBe(14);
+    expect(r.mesesRestantes).toBe(7);      // junho a dezembro
+    expect(r.porMes).toBe(2);              // 14 / 7
+  });
+
+  it('projeta o total do ano a partir do ritmo atual', () => {
+    const r = ritmoMeta(6, 20, junho);
+    expect(r.ritmoAtual).toBe(1);          // 6 livros / 6 meses decorridos
+    expect(r.projecao).toBe(12);           // 1 * 12
+    expect(r.noRitmo).toBe(false);         // 12 < 20
+  });
+
+  it('reconhece quem está no ritmo', () => {
+    const r = ritmoMeta(12, 20, junho);    // 2/mês -> projeta 24
+    expect(r.projecao).toBe(24);
+    expect(r.noRitmo).toBe(true);
+  });
+
+  it('marca a meta como cumprida sem exigir mais leitura', () => {
+    const r = ritmoMeta(25, 20, junho);
+    expect(r.cumprida).toBe(true);
+    expect(r.restantes).toBe(0);
+    expect(r.porMes).toBe(0);
+    expect(r.noRitmo).toBe(true);
+  });
+
+  it('trata início de ano sem nenhuma leitura', () => {
+    const r = ritmoMeta(0, 12, new Date(2026, 0, 5)); // janeiro
+    expect(r.mesesRestantes).toBe(12);
+    expect(r.porMes).toBe(1);
+    expect(r.projecao).toBe(0);
+    expect(r.cumprida).toBe(false);
+  });
+
+  it('não quebra em dezembro nem com meta zerada', () => {
+    const dezembro = ritmoMeta(3, 10, new Date(2026, 11, 20));
+    expect(dezembro.mesesRestantes).toBe(1);
+    expect(dezembro.porMes).toBe(7);
+
+    const semMeta = ritmoMeta(3, 0, junho);
+    expect(semMeta.restantes).toBe(0);
+    expect(Number.isFinite(semMeta.porMes)).toBe(true);
   });
 });

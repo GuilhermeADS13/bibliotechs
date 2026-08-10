@@ -39,7 +39,7 @@ function Destaque({ valor, rotulo, sub, cor, DA }) {
   );
 }
 
-export function Estatisticas({ livros, DA, GRAD_BTN, googleBooksKey, onIrParaAdicionar }) {
+export function Estatisticas({ livros, DA, GRAD_BTN, googleBooksKey, onIrParaAdicionar, onIrParaMetas }) {
   const anos = useMemo(() => anosDisponiveis(livros), [livros]);
   const [ano, setAno] = useState(anos[0]);
 
@@ -228,6 +228,18 @@ export function Estatisticas({ livros, DA, GRAD_BTN, googleBooksKey, onIrParaAdi
           <Destaque valor={stats.lendo} rotulo="Lendo agora" sub={`${stats.queroLer} na fila`} cor={DA.forestGreen} DA={DA} />
         </div>
       </Painel>
+
+      {/* Ponte para a meta anual, que vive na aba Metas */}
+      {onIrParaMetas && (
+        <button onClick={onIrParaMetas} style={{
+          background: 'rgba(245,240,224,0.85)', border: '1px dashed rgba(196,154,108,0.6)',
+          borderRadius: '14px', padding: '14px', cursor: 'pointer', fontWeight: '700',
+          fontSize: '13px', color: DA.oxblood, fontFamily: 'inherit', width: '100%',
+          backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
+        }}>
+          🎯 Definir e acompanhar sua meta anual em Metas →
+        </button>
+      )}
 
       {/* Recomendações personalizadas */}
       <Recomendacoes
