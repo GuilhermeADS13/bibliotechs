@@ -555,14 +555,14 @@ export default function App() {
               </div>
               <h2 style={{ color: DA.espresso, fontSize: '24px', fontWeight: '900', marginBottom: '16px' }}>B.IA - Sua Agente Literária</h2>
               <p style={{ color: DA.walnut, lineHeight: '1.6', marginBottom: '20px' }}>
-                Clique no botão flutuante no canto inferior direito para conversar com a B.IA.
-                Ela conhece toda a sua estante e analisa seu ritmo de leitura.
+                Clique no botão no canto inferior direito para conversar. Ela conhece
+                sua estante, tem opinião sobre livros e não tem papas na língua.
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '24px', textAlign: 'left', maxWidth: '380px', margin: '0 auto 24px' }}>
                 {[
-                  '“Quantos livros li por mês?” — análise do seu ritmo',
-                  '“Me recomende um livro” — sugestões pelo seu histórico',
-                  '“Resuma [título]” — busca resumo na Google Books',
+                  '“Tô lendo demais do mesmo tipo?”',
+                  '“Me indica algo diferente do que costumo ler”',
+                  '“Vale a pena esse livro que eu adicionei?”',
                 ].map(exemplo => (
                   <div key={exemplo} style={{ fontSize: '13px', color: DA.walnut, background: 'rgba(255,255,255,0.55)', borderRadius: '9px', padding: '9px 13px', border: `1px solid ${DA.warmBeige}` }}>
                     {exemplo}

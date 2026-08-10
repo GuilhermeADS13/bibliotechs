@@ -173,6 +173,38 @@ describe('handler api/bia', () => {
     expect(res.corpo.erro).toBe('historico-longo');
   });
 
+  // Feedback de usuária: "tá muito robótico, tu podia fazer como se fosse uma
+  // conversa". A instrução anterior pedia "analítico e direto" e "no máximo
+  // dois parágrafos" — e produzia relatório.
+  it('instrui tom de conversa, não de relatório', async () => {
+    const espiao = vi.fn().mockResolvedValue(respostaOk());
+    vi.stubGlobal('fetch', espiao);
+    await handler(req({ pergunta: 'e aí?', contexto: 'Lidos: 12' }), criarRes());
+
+    const instrucao = JSON.parse(espiao.mock.calls[0][1].body).contents[0].parts[0].text;
+    expect(instrucao).toMatch(/amiga que lê/);
+    expect(instrucao).toMatch(/não como um sistema que\s+gera relatórios/);
+    // Vocabulário de laudo é o que mais fazia soar robótico.
+    expect(instrucao).toMatch(/vocabulário de laudo/);
+    expect(instrucao).toMatch(/padrão de consumo/); // consta como termo proibido
+    // Ela abria quase toda resposta com "Sua estante...".
+    expect(instrucao).toMatch(/não comece sempre/);
+    // Tamanho fixo forçava dois parágrafos mesmo para pergunta simples.
+    expect(instrucao).toMatch(/no tamanho que a pergunta pede/);
+    expect(instrucao).toMatch(/devolva uma pergunta curta/);
+  });
+
+  it('o turno de acerto do modelo não usa tom burocrático', async () => {
+    const espiao = vi.fn().mockResolvedValue(respostaOk());
+    vi.stubGlobal('fetch', espiao);
+    await handler(req({ pergunta: 'e aí?', contexto: 'x' }), criarRes());
+
+    // O modelo imita a própria fala anterior: um "Entendido." formal aqui
+    // puxava a resposta inteira para o registro de relatório.
+    const ok = JSON.parse(espiao.mock.calls[0][1].body).contents[1].parts[0].text;
+    expect(ok).not.toMatch(/Entendido|Vou analisar a partir/);
+  });
+
   it('proíbe ataque pessoal em qualquer situação', async () => {
     const espiao = vi.fn().mockResolvedValue(respostaOk());
     vi.stubGlobal('fetch', espiao);

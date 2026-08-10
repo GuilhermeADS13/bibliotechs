@@ -8,10 +8,13 @@ import {
 import { BiaAvatar } from './BiaAvatar';
 import { diaDeHoje, rotularDia } from '../hooks/useConversas';
 
+// A saudação anterior abria com "Saudações" e recitava as próprias
+// funcionalidades antes de dizer qualquer coisa — uma usuária resumiu como
+// "muito robótico". Agora ela fala como gente e devolve a palavra.
 const SAUDACAO = {
   id: 1,
   tipo: 'bot',
-  texto: 'Saudações. Sou B.IA, sua Agente Literária Analítica 🧐. Minha função não é apenas catalogar, mas dissecar sua estante com rigor. Analiso seu ritmo mensal, recomendo obras a partir do seu histórico e busco resumos na internet. O que vamos analisar hoje?',
+  texto: 'Oi! Sou a B.IA 📚 Curioso pra saber o que você anda lendo — e tenho opinião sobre quase tudo, então já aviso. Me pergunta sobre um livro, sobre seu ritmo de leitura, ou pede uma indicação. O que rolou de bom ultimamente?',
   timestamp: new Date(),
 };
 
@@ -648,7 +651,7 @@ export function LiteraryAgent({
           type="text"
           placeholder={soLeitura
             ? 'Volte para hoje para conversar'
-            : "Ex: 'Resuma [Título]' ou 'Quantos livros li por mês?'..."}
+            : 'Pergunta o que quiser sobre livros...'}
           value={entrada}
           onChange={e => setEntrada(e.target.value)}
           onKeyPress={handleKeyPress}

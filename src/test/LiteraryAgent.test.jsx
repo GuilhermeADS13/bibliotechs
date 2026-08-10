@@ -2,9 +2,14 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { LiteraryAgent } from '../components/LiteraryAgent';
 
-// O chat agora persiste a conversa do dia. Sem limpar entre os testes, um `it`
+// Estes testes exercitam o MOTOR DE REGRAS, não o modelo: em ambiente de teste
+// /api/bia não existe, perguntarAoModelo falha e o componente cai no fallback.
+// Continuam valendo — o fallback é o que segura o chat quando o modelo está
+// fora do ar —, mas não medem a qualidade das respostas reais.
+//
+// O chat também persiste a conversa do dia. Sem limpar entre os testes, um `it`
 // carregaria a conversa gravada pelo anterior e o mesmo texto apareceria duas
-// vezes na tela — quebrando as buscas por texto único.
+// vezes na tela, quebrando as buscas por texto único.
 beforeEach(() => { localStorage.clear(); });
 
 const mockDA = {
@@ -30,7 +35,7 @@ const mockLivrosComDatas = [
 
 // Envia uma pergunta no chat já aberto
 function perguntar(texto) {
-  const input = screen.getByPlaceholderText(/Ex: 'Resuma \[Título\]'/);
+  const input = screen.getByPlaceholderText(/Pergunta o que quiser/);
   fireEvent.change(input, { target: { value: texto } });
   fireEvent.click(screen.getByText('→'));
 }
@@ -44,14 +49,14 @@ describe('LiteraryAgent (B.IA) Integration', () => {
   it('deve abrir o chat e mostrar a mensagem de boas-vindas', () => {
     render(<LiteraryAgent livros={mockLivros} DA={mockDA} GRAD_BTN="" />);
     fireEvent.click(screen.getByTitle('Abrir B.IA'));
-    expect(screen.getByText(/Sou B.IA, sua Agente Literária Analítica/)).toBeInTheDocument();
+    expect(screen.getByText(/Sou a B.IA/)).toBeInTheDocument();
   });
 
   it('deve buscar resumo de um livro via API simulada', async () => {
     render(<LiteraryAgent livros={mockLivros} DA={mockDA} GRAD_BTN="" googleBooksKey="test-key" />);
     fireEvent.click(screen.getByTitle('Abrir B.IA'));
 
-    const input = screen.getByPlaceholderText(/Ex: 'Resuma \[Título\]'/);
+    const input = screen.getByPlaceholderText(/Pergunta o que quiser/);
     fireEvent.change(input, { target: { value: 'Resuma O Alquimista' } });
     fireEvent.click(screen.getByText('→'));
 
@@ -67,7 +72,7 @@ describe('LiteraryAgent (B.IA) Integration', () => {
     render(<LiteraryAgent livros={mockLivros} DA={mockDA} GRAD_BTN="" />);
     fireEvent.click(screen.getByTitle('Abrir B.IA'));
 
-    const input = screen.getByPlaceholderText(/Ex: 'Resuma \[Título\]'/);
+    const input = screen.getByPlaceholderText(/Pergunta o que quiser/);
     fireEvent.change(input, { target: { value: 'Quais são minhas estatísticas?' } });
     fireEvent.click(screen.getByText('→'));
 
