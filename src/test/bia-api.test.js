@@ -102,9 +102,23 @@ describe('handler api/bia', () => {
     const instrucao = JSON.parse(espiao.mock.calls[0][1].body).contents[0].parts[0].text;
     expect(instrucao).toMatch(/estante está vazia/);
     expect(instrucao).toMatch(/não deve\s+ser criticado/); // \s+ porque o texto quebra linha
-    expect(instrucao).toMatch(/aba Adicionar/);
     // Sem dados não existe seção de números para o modelo consultar.
     expect(instrucao).not.toMatch(/DADOS DA ESTANTE \(exatos\)/);
+  });
+
+  // Ao proibir a hostilidade eu exagerei: ela passou a recusar ate pedidos que
+  // nao dependem da estante ("queria ler um livro bom" -> "cadastre primeiro").
+  it('com estante vazia, ainda assim deve indicar livros de verdade', async () => {
+    const espiao = vi.fn().mockResolvedValue(respostaOk());
+    vi.stubGlobal('fetch', espiao);
+
+    await handler(req({ pergunta: 'queria ler um livro bom agora', contexto: '' }), criarRes());
+
+    const instrucao = JSON.parse(espiao.mock.calls[0][1].body).contents[0].parts[0].text;
+    expect(instrucao).toMatch(/NÃO é motivo para recusar ajuda/);
+    expect(instrucao).toMatch(/INDIQUE de fato/);
+    expect(instrucao).toMatch(/Nunca responda só com um pedido de cadastro/);
+    expect(instrucao).toMatch(/nunca como condição para responder/);
   });
 
   it('com dados, envia o contexto exato e a proibição de inventar números', async () => {
