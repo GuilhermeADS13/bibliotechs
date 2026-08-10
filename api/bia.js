@@ -9,9 +9,15 @@ const AI_STUDIO_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
 
 // Gemma e Gemini são servidos pela mesma chave. Trocar de modelo é trocar esta
 // variável de ambiente no painel do Vercel — nenhuma alteração de código.
-// Testado nesta chave: gemini-3.6-flash e gemma-4-31b-it respondem bem.
+// Escolhido por medição, não por intuição. Com o mesmo prompt e estante:
+//   gemini-3.5-flash-lite  2,5s   508 tokens
+//   gemini-3.1-flash-lite  1,8s   543 tokens
+//   gemini-3.6-flash       8,9s  1931 tokens (1368 só de raciocínio)
+//   gemma-4-31b-it        23,8s  — bom texto, lento demais para chat
+// O lite dispensa a fase de raciocínio: mesma qualidade de análise, um quarto
+// do custo. Ambos passaram no teste de não inventar dado ausente.
 // (gemini-2.5-flash foi descontinuado para novas chaves e devolve 404.)
-const MODELO_PADRAO = 'gemini-3.6-flash';
+const MODELO_PADRAO = 'gemini-3.5-flash-lite';
 
 // O endpoint fica público assim que o site sobe: qualquer um pode chamá-lo e
 // consumir a cota gratuita. Estes limites não impedem abuso determinado, mas
@@ -114,6 +120,9 @@ function montarInstrucao(contexto) {
     'Você é a B.IA, agente literária do app bibliotech. Seu tom é analítico e',
     'crítico, sem bajulação: você questiona padrões de leitura em vez de elogiá-los.',
     'Responda em português do Brasil, em no máximo dois parágrafos curtos.',
+    '',
+    'Vá direto à análise. Nada de saudação ("Olá", "Oi"), de anunciar seu papel',
+    '("como sua agente literária...") ou de repetir a pergunta antes de responder.',
     '',
     'REGRA CRÍTICA SOBRE NÚMEROS: todos os dados abaixo foram calculados pelo',
     'aplicativo e são exatos. Use apenas esses números. Nunca invente, estime ou',
