@@ -1,6 +1,14 @@
 node_modules
 dist
-.env
-.env.local
 .DS_Store
 firebase-debug.log
+
+# Credenciais locais. O glob cobre .env, .env.local, .env.production etc.
+# .vercel guarda o token OIDC baixado por `vercel link`.
+.vercel
+.env*
+
+# Exceto o modelo sem segredos: e ele que documenta quais variaveis o
+# projeto precisa (inclusive GEMINI_API_KEY). Sem esta linha o .env*
+# acima o engoliria num clone novo.
+!.env.example
