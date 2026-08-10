@@ -8,7 +8,11 @@ export default defineConfig({
       output: {
         manualChunks: {
           react: ['react', 'react-dom'],
-          firebase: ['firebase/app', 'firebase/auth', 'firebase/firestore'],
+          // Firestore separado do auth: só é importado dinamicamente, depois do
+          // login. Quem navega sem conta (livros e conversas em localStorage)
+          // não baixa esse pedaço, que é o maior do Firebase.
+          firebase: ['firebase/app', 'firebase/auth'],
+          firestore: ['firebase/firestore'],
           icons: ['lucide-react'],
         },
       },

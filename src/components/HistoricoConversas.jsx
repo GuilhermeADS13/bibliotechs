@@ -116,6 +116,7 @@ export function HistoricoConversas({ conversas, carregando, onApagar, DA, user }
                     }
                   }}
                   title="Apagar esta conversa"
+                  aria-label={`Apagar a conversa de ${rotularDia(dia, hoje)}`}
                   style={{
                     background: 'none', border: 'none', cursor: 'pointer',
                     padding: '14px 16px', fontSize: '14px', color: DA.oxblood,

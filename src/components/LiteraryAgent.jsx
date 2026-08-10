@@ -3,7 +3,7 @@ import { calcularEstatisticas, resumoMensalTexto, MESES_LONGOS } from '../estati
 import { gerarRecomendacoes } from '../recomendacoes';
 import {
   montarContexto, perguntarAoModelo, mensagemDeFalha,
-  identificarLivroMencionado, contextoDoLivro,
+  identificarLivroMencionado, contextoDoLivro, contextoDeRecomendacoes,
 } from '../bia';
 import { BiaAvatar } from './BiaAvatar';
 import { diaDeHoje, rotularDia } from '../hooks/useConversas';
@@ -23,6 +23,8 @@ export function LiteraryAgent({
   const [mensagens, setMensagens] = useState([SAUDACAO]);
   const [entrada, setEntrada] = useState('');
   const [carregando, setCarregando] = useState(false);
+  // Texto chegando em tempo real, ainda não gravado no histórico.
+  const [parcial, setParcial] = useState('');
   const [expandido, setExpandido] = useState(false);
   const [verHistorico, setVerHistorico] = useState(false);
   // null = conversa de hoje (editável). Uma data = dia anterior, só leitura.
@@ -49,7 +51,7 @@ export function LiteraryAgent({
     if (containerRef.current) {
       containerRef.current.scrollTop = containerRef.current.scrollHeight;
     }
-  }, [exibidas]);
+  }, [exibidas, parcial]);
 
   // Buscar informações do livro na Google Books API
   const buscarLivroNaInternet = async (titulo, autor = '') => {
@@ -112,47 +114,53 @@ export function LiteraryAgent({
   /**
    * Roteia a pergunta.
    *
-   * Resumo e recomendação continuam determinísticos: dependem de uma busca na
-   * Google Books e já produzem uma resposta bem formatada — passar pelo modelo
-   * só acrescentaria risco de alucinação sobre dados que já temos corretos.
-   * Todo o resto vai ao modelo, que é justamente o que destrava perguntas fora
-   * da lista de palavras-chave. Se ele não responder (sem chave, cota esgotada,
-   * offline, ou rodando em `vite dev`), caímos nas regras locais.
+   * TODA pergunta vai ao modelo; o que muda é o que se junta ao contexto antes.
+   * Antes, "resuma X" e "recomende" desviavam para templates fixos e nunca
+   * chegavam ao modelo — a mesma dúvida recebia qualidade diferente conforme a
+   * palavra usada, e os templates não sustentavam pergunta de seguimento. Agora
+   * os dados externos (Google Books, motor de recomendação) entram como contexto
+   * e o modelo escreve. As regras ficam só de fallback, para quando ele falha.
    */
-  const gerarRespostaAgente = async (pergunta) => {
+  const gerarRespostaAgente = async (pergunta, aoReceberParcial) => {
     const p = pergunta.toLowerCase();
-    const precisaBuscaExterna =
-      p.includes('resumo') || p.includes('resuma') || p.includes('resumir') || p.includes('análise')
-      || p.includes('recomend') || p.includes('próximo') || p.includes('proximo')
-      || p.includes('sugest') || p.includes('o que ler') || p.includes('que eu leio');
+    const querRecomendacao =
+      p.includes('recomend') || p.includes('sugest') || p.includes('indica')
+      || p.includes('o que ler') || p.includes('que eu leio') || p.includes('próximo livro')
+      || p.includes('proximo livro');
 
-    if (!precisaBuscaExterna) {
-      // Se a pergunta fala de um livro da estante, busca os dados reais no
-      // Google Books e entrega prontos ao modelo. Sem isso ele responderia de
-      // memória e poderia errar editora, ano ou número de páginas.
-      let contexto = montarContexto(livros);
-      const livroCitado = identificarLivroMencionado(pergunta, livros, mensagens);
-      if (livroCitado) {
-        const info = await buscarLivroNaInternet(livroCitado.titulo, livroCitado.autor || '');
-        if (info) contexto += contextoDoLivro(info, livroCitado);
-      }
+    let contexto = montarContexto(livros);
 
-      // `mensagens` ainda não inclui a pergunta atual (o React só aplica o
-      // estado no próximo render), então é exatamente o histórico anterior.
-      const { texto, erro } = await perguntarAoModelo(pergunta, contexto, {
-        historico: mensagens,
-      });
-      if (texto) return texto;
-
-      // O modelo falhou. As regras só assumem se realmente souberem responder;
-      // do contrário o usuário recebia um texto genérico que parecia resposta e
-      // se repetia igual a cada tentativa, escondendo que algo quebrou.
-      const daRegra = await responderComRegras(pergunta);
-      return daRegra || mensagemDeFalha(erro);
+    // Dados reais do livro citado: sem isso o modelo responderia de memória e
+    // poderia errar editora, ano ou número de páginas.
+    const livroCitado = identificarLivroMencionado(pergunta, livros, mensagens);
+    if (livroCitado) {
+      const info = await buscarLivroNaInternet(livroCitado.titulo, livroCitado.autor || '');
+      if (info) contexto += contextoDoLivro(info, livroCitado);
     }
 
-    return (await responderComRegras(pergunta))
-      || 'Não identifiquei o que você quer saber. Peça um resumo ("Resuma [Título]"), uma recomendação, ou pergunte sobre seu ritmo de leitura.';
+    // Candidatos vindos da Google Books, filtrados pelo perfil de leitura. O
+    // modelo escolhe e justifica; a busca continua sendo feita em código.
+    if (querRecomendacao) {
+      const { recomendacoes, perfil } = await gerarRecomendacoes(livros, {
+        googleBooksKey,
+        limite: 6,
+      });
+      contexto += contextoDeRecomendacoes(recomendacoes, perfil);
+    }
+
+    // `mensagens` ainda não inclui a pergunta atual (o React só aplica o estado
+    // no próximo render), então é exatamente o histórico anterior.
+    const { texto, erro } = await perguntarAoModelo(pergunta, contexto, {
+      historico: mensagens,
+      aoReceber: aoReceberParcial,
+    });
+    if (texto) return texto;
+
+    // O modelo falhou. As regras só assumem se souberem responder de fato; do
+    // contrário o usuário via um texto genérico que parecia resposta e se
+    // repetia igual, escondendo que algo tinha quebrado.
+    const daRegra = await responderComRegras(pergunta);
+    return daRegra || mensagemDeFalha(erro);
   };
 
   // Motor de regras original — agora o fallback, não o caminho principal.
@@ -310,9 +318,13 @@ export function LiteraryAgent({
 
     // Antes havia um setTimeout de 1,2s simulando "pensamento". Agora a espera
     // é real (rede + modelo), então o atraso artificial só somaria latência.
+    //
+    // O texto parcial fica num estado separado em vez de virar mensagem: só
+    // entra no histórico depois de completo, senão um corte de conexão gravaria
+    // meia frase na conversa.
     let respostaTexto;
     try {
-      respostaTexto = await gerarRespostaAgente(entrada);
+      respostaTexto = await gerarRespostaAgente(entrada, setParcial);
     } catch (e) {
       console.error('Falha ao gerar resposta da B.IA:', e);
       respostaTexto = 'Houve uma falha ao processar sua pergunta. Tente novamente.';
@@ -325,6 +337,7 @@ export function LiteraryAgent({
       timestamp: new Date(),
     }];
     setMensagens(completa);
+    setParcial('');
     setCarregando(false);
 
     // Persiste só depois da resposta: gravar a cada mensagem dobraria as
@@ -385,13 +398,17 @@ export function LiteraryAgent({
 
   return (
     <div
+      className="bia-chat"
       style={{
         position: 'fixed',
         bottom: '24px',
         right: '24px',
         width: '100%',
         maxWidth: '420px',
-        height: '600px',
+        // 600px fixos + 24px de margem exigiam 624px de altura útil. Num celular
+        // pequeno, descontada a barra do navegador, o topo do chat ficava fora
+        // da tela. A media query abaixo assume a tela inteira nesse caso.
+        height: 'min(600px, calc(100vh - 48px))',
         background: 'rgba(245,240,224,0.98)',
         borderRadius: '16px',
         boxShadow: '0 12px 48px rgba(44,26,20,0.35)',
@@ -430,6 +447,8 @@ export function LiteraryAgent({
             <button
               onClick={() => setVerHistorico(v => !v)}
               title="Conversas anteriores"
+              aria-label="Conversas anteriores"
+              aria-expanded={verHistorico}
               style={{
                 background: verHistorico ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.2)',
                 border: 'none', color: DA.cream, borderRadius: '6px',
@@ -513,6 +532,7 @@ export function LiteraryAgent({
                   }
                 }}
                 title="Apagar esta conversa"
+                aria-label={`Apagar a conversa de ${rotularDia(dia, hoje)}`}
                 style={{
                   background: 'none', border: 'none', cursor: 'pointer',
                   padding: '10px 14px', fontSize: '13px', color: DA.oxblood,
@@ -588,11 +608,27 @@ export function LiteraryAgent({
           </div>
         ))}
 
-        {carregando && (
+        {/* Enquanto o texto chega, mostra o que já veio; os pontinhos só
+            aparecem antes da primeira palavra. */}
+        {carregando && !soLeitura && (
           <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
-            <div style={{ padding: '12px 14px', borderRadius: '14px 14px 14px 4px', background: 'rgba(212,197,169,0.3)', display: 'flex', gap: '4px' }}>
-              <span className="dot">.</span><span className="dot">.</span><span className="dot">.</span>
-            </div>
+            {parcial ? (
+              <div style={{
+                maxWidth: '85%', padding: '12px 14px',
+                borderRadius: '14px 14px 14px 4px',
+                background: 'rgba(245,240,224,0.95)',
+                border: '1px solid rgba(196,154,108,0.35)',
+                color: DA.espresso, fontSize: '13px', lineHeight: 1.6,
+                whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+              }}>
+                {parcial}
+                <span className="cursor-bia" aria-hidden="true">▌</span>
+              </div>
+            ) : (
+              <div style={{ padding: '12px 14px', borderRadius: '14px 14px 14px 4px', background: 'rgba(212,197,169,0.3)', display: 'flex', gap: '4px' }}>
+                <span className="dot">.</span><span className="dot">.</span><span className="dot">.</span>
+              </div>
+            )}
           </div>
         )}
       </div>

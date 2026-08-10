@@ -1,15 +1,20 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 
-// O hook importa ../firebase, que inicializa o app real; o mock evita isso.
-vi.mock('../firebase', () => ({ db: {} }));
-vi.mock('firebase/firestore', () => ({
+// O Firestore agora entra por import dinâmico (carregarFirestore), para não
+// pesar no bundle de quem navega sem conta. O mock reproduz esse formato.
+const fsMock = {
   collection: vi.fn(), query: vi.fn(), where: vi.fn(),
   // orderBy fica exposto no mock só para o teste provar que NÃO é usado.
   orderBy: vi.fn(),
   onSnapshot: vi.fn(() => () => {}),
   doc: vi.fn(), setDoc: vi.fn(async () => {}), deleteDoc: vi.fn(async () => {}),
   serverTimestamp: vi.fn(() => 'ts'),
+  getFirestore: vi.fn(() => ({})),
+};
+
+vi.mock('../firebase', () => ({
+  carregarFirestore: vi.fn(async () => ({ fs: fsMock, db: {} })),
 }));
 
 import { useConversas, diaDeHoje, rotularDia } from '../hooks/useConversas';
@@ -128,28 +133,39 @@ describe('useConversas com login (Firestore)', () => {
   // um índice composto. Sem o índice a consulta falha inteira e NENHUMA conversa
   // carrega — o usuário saía e voltava e não encontrava nada.
   it('não usa orderBy, que exigiria índice composto', async () => {
-    const { orderBy, where } = await import('firebase/firestore');
-    orderBy.mockClear();
-    where.mockClear();
+    fsMock.orderBy.mockClear();
+    fsMock.where.mockClear();
 
     renderHook(() => useConversas({ uid: 'user123' }));
+    await waitFor(() => expect(fsMock.where).toHaveBeenCalled());
 
-    expect(where).toHaveBeenCalledWith('uid', '==', 'user123');
-    expect(orderBy).not.toHaveBeenCalled();
+    expect(fsMock.where).toHaveBeenCalledWith('uid', '==', 'user123');
+    expect(fsMock.orderBy).not.toHaveBeenCalled();
   });
 
   it('grava no documento <uid>_<dia>, que é o formato exigido pela regra', async () => {
-    const { doc, setDoc } = await import('firebase/firestore');
+    fsMock.doc.mockClear();
+    fsMock.setDoc.mockClear();
     const { result } = renderHook(() => useConversas({ uid: 'user123' }));
 
     await act(async () => {
       await result.current.salvar('2026-08-10', [{ id: 1, tipo: 'bot', texto: 'oi' }]);
     });
 
-    expect(doc).toHaveBeenCalledWith({}, 'conversas', 'user123_2026-08-10');
-    const dados = setDoc.mock.calls[0][1];
+    expect(fsMock.doc).toHaveBeenCalledWith({}, 'conversas', 'user123_2026-08-10');
+    const dados = fsMock.setDoc.mock.calls[0][1];
     expect(dados.uid).toBe('user123');
     expect(dados.dia).toBe('2026-08-10');
     expect(dados.mensagens).toHaveLength(1);
+  });
+
+  it('não trava o carregamento se o Firestore falhar ao importar', async () => {
+    const { carregarFirestore } = await import('../firebase');
+    carregarFirestore.mockRejectedValueOnce(new Error('rede caiu'));
+
+    const { result } = renderHook(() => useConversas({ uid: 'user123' }));
+    // Sem o catch, `carregando` ficaria true para sempre e o chat exibiria
+    // "Carregando conversas..." indefinidamente.
+    await waitFor(() => expect(result.current.carregando).toBe(false));
   });
 });

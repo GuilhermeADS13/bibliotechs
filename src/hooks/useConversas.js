@@ -1,9 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { db } from '../firebase';
-import {
-  collection, query, where, onSnapshot,
-  doc, setDoc, deleteDoc, serverTimestamp,
-} from 'firebase/firestore';
+import { carregarFirestore } from '../firebase';
 
 // Uma conversa por dia. O corte diário é automático: ninguém precisa decidir
 // quando "limpar" — a conversa de hoje começa vazia e a de ontem fica guardada
@@ -69,30 +65,42 @@ export function useConversas(user) {
       return;
     }
 
-    // Sem `orderBy`: combinar where('uid') com orderBy('dia') exige um índice
-    // composto no Firestore. Sem o índice a consulta falha inteira e nenhuma
-    // conversa carrega — foi o que aconteceu. São poucos documentos (um por
-    // dia), então a ordenação sai de graça no cliente.
-    const q = query(collection(db, 'conversas'), where('uid', '==', user.uid));
+    let cancelado = false;
+    let unsub = () => {};
 
-    const unsub = onSnapshot(
-      q,
-      snap => {
-        const mapa = {};
-        for (const d of snap.docs) {
-          const dados = d.data();
-          if (dados?.dia && Array.isArray(dados.mensagens)) mapa[dados.dia] = dados.mensagens;
+    carregarFirestore().then(mod => {
+      if (cancelado || !mod) { setCarregando(false); return; }
+      const { fs, db } = mod;
+
+      // Sem `orderBy`: combinar where('uid') com orderBy('dia') exige um índice
+      // composto no Firestore. Sem o índice a consulta falha inteira e nenhuma
+      // conversa carrega — foi o que aconteceu. São poucos documentos (um por
+      // dia), então a ordenação sai de graça no cliente.
+      const q = fs.query(fs.collection(db, 'conversas'), fs.where('uid', '==', user.uid));
+
+      unsub = fs.onSnapshot(
+        q,
+        snap => {
+          const mapa = {};
+          for (const d of snap.docs) {
+            const dados = d.data();
+            if (dados?.dia && Array.isArray(dados.mensagens)) mapa[dados.dia] = dados.mensagens;
+          }
+          setConversas(mapa);
+          setCarregando(false);
+        },
+        err => {
+          // Sem isto uma falha no listener deixaria o chat preso em "carregando".
+          console.error('Erro ao carregar conversas:', err);
+          setCarregando(false);
         }
-        setConversas(mapa);
-        setCarregando(false);
-      },
-      err => {
-        // Sem isto uma falha no listener deixaria o chat preso em "carregando".
-        console.error('Erro ao carregar conversas:', err);
-        setCarregando(false);
-      }
-    );
-    return () => unsub();
+      );
+    }).catch(e => {
+      console.error('Erro ao carregar o Firestore:', e);
+      setCarregando(false);
+    });
+
+    return () => { cancelado = true; unsub(); };
   }, [user]);
 
   const salvar = useCallback(async (dia, mensagens) => {
@@ -121,11 +129,14 @@ export function useConversas(user) {
     ultimoSalvo.current = assinatura;
 
     try {
-      await setDoc(doc(db, 'conversas', idDoc(user.uid, dia)), {
+      const mod = await carregarFirestore();
+      if (!mod) return;
+      const { fs, db } = mod;
+      await fs.setDoc(fs.doc(db, 'conversas', idDoc(user.uid, dia)), {
         uid: user.uid,
         dia,
         mensagens: limpas,
-        atualizadoEm: serverTimestamp(),
+        atualizadoEm: fs.serverTimestamp(),
       });
     } catch (e) {
       // Falha de gravação não pode derrubar o chat: a conversa segue em memória.
@@ -143,7 +154,10 @@ export function useConversas(user) {
 
     if (!user) return;
     try {
-      await deleteDoc(doc(db, 'conversas', idDoc(user.uid, dia)));
+      const mod = await carregarFirestore();
+      if (!mod) return;
+      const { fs, db } = mod;
+      await fs.deleteDoc(fs.doc(db, 'conversas', idDoc(user.uid, dia)));
     } catch (e) {
       console.error('Erro ao apagar conversa:', e);
     }

@@ -1,9 +1,5 @@
 import { useState, useEffect } from 'react';
-import { db } from '../firebase';
-import {
-  collection, query, where, onSnapshot,
-  addDoc, updateDoc, deleteDoc, doc, serverTimestamp
-} from 'firebase/firestore';
+import { carregarFirestore } from '../firebase';
 
 // Move livros salvos sem conta (localStorage) para o Firestore quando o usuário loga.
 // Remove do localStorage ANTES de enviar para evitar migração duplicada (StrictMode/reentrância).
@@ -14,9 +10,12 @@ async function migrarLocaisParaFirestore(user) {
   if (!Array.isArray(locais) || locais.length === 0) return;
   localStorage.removeItem('da-livros');
   try {
+    const mod = await carregarFirestore();
+    if (!mod) throw new Error('Firestore indisponível');
+    const { fs, db } = mod;
     for (const l of locais) {
       const { id: _ignored, ...data } = l;
-      await addDoc(collection(db, 'livros'), { ...data, uid: user.uid, criadoEm: serverTimestamp() });
+      await fs.addDoc(fs.collection(db, 'livros'), { ...data, uid: user.uid, criadoEm: fs.serverTimestamp() });
     }
   } catch (e) {
     console.error('Falha ao migrar livros locais para a conta:', e);
@@ -37,21 +36,33 @@ export function useLivros(user) {
     // Migra livros adicionados sem conta (localStorage) para o Firestore no primeiro login
     migrarLocaisParaFirestore(user);
 
-    const q = query(collection(db, 'livros'), where('uid', '==', user.uid));
-    const unsub = onSnapshot(
-      q,
-      snap => {
-        // id do documento Firestore sempre tem prioridade sobre qualquer campo 'id' salvo
-        setLivros(snap.docs.map(d => { const data = d.data(); delete data.id; return { id: d.id, ...data }; }));
-        setLoading(false);
-      },
-      err => {
-        // Sem isto, uma falha no listener deixaria o app preso em "Carregando..."
-        console.error('Erro ao carregar livros do Firestore:', err);
-        setLoading(false);
-      }
-    );
-    return () => unsub();
+    let cancelado = false;
+    let unsub = () => {};
+
+    carregarFirestore().then(mod => {
+      if (cancelado || !mod) { setLoading(false); return; }
+      const { fs, db } = mod;
+
+      const q = fs.query(fs.collection(db, 'livros'), fs.where('uid', '==', user.uid));
+      unsub = fs.onSnapshot(
+        q,
+        snap => {
+          // id do documento Firestore sempre tem prioridade sobre qualquer campo 'id' salvo
+          setLivros(snap.docs.map(d => { const data = d.data(); delete data.id; return { id: d.id, ...data }; }));
+          setLoading(false);
+        },
+        err => {
+          // Sem isto, uma falha no listener deixaria o app preso em "Carregando..."
+          console.error('Erro ao carregar livros do Firestore:', err);
+          setLoading(false);
+        }
+      );
+    }).catch(e => {
+      console.error('Erro ao carregar o Firestore:', e);
+      setLoading(false);
+    });
+
+    return () => { cancelado = true; unsub(); };
   }, [user]);
 
   useEffect(() => {
@@ -71,7 +82,8 @@ export function useLivros(user) {
     }
     // Remove campo 'id' gerado pelo client antes de salvar no Firestore
     const { id: _ignored, ...data } = livroFinal;
-    await addDoc(collection(db, 'livros'), { ...data, uid: user.uid, criadoEm: serverTimestamp() });
+    const { fs, db } = await carregarFirestore();
+    await fs.addDoc(fs.collection(db, 'livros'), { ...data, uid: user.uid, criadoEm: fs.serverTimestamp() });
   };
 
   const atualizar = async (id, dados) => {
@@ -85,7 +97,8 @@ export function useLivros(user) {
     }
     if (!user) { setLivros(p => p.map(l => l.id === id ? { ...l, ...dadosFinal } : l)); return; }
     try {
-      await updateDoc(doc(db, 'livros', String(id)), dadosFinal);
+      const { fs, db } = await carregarFirestore();
+      await fs.updateDoc(fs.doc(db, 'livros', String(id)), dadosFinal);
     } catch (e) {
       console.error('Erro ao atualizar livro:', e);
       alert('Não foi possível atualizar o livro. Tente novamente.');
@@ -95,7 +108,8 @@ export function useLivros(user) {
   const remover = async (id) => {
     if (!user) { setLivros(p => p.filter(l => l.id !== id)); return; }
     try {
-      await deleteDoc(doc(db, 'livros', String(id)));
+      const { fs, db } = await carregarFirestore();
+      await fs.deleteDoc(fs.doc(db, 'livros', String(id)));
     } catch (e) {
       console.error('Erro ao remover livro:', e);
       alert('Não foi possível remover o livro. Tente novamente.');

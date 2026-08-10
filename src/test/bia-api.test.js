@@ -5,7 +5,16 @@
 // executavam o handler. Agora executam.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+
+// A verificação real confere a assinatura do token contra as chaves públicas do
+// Google — forjar um token válido no teste não é viável, e a lógica dela é
+// testada pelo seu próprio contrato (uid ou erro).
+vi.mock('../../api/_auth.js', () => ({
+  verificarToken: vi.fn(async () => ({ uid: 'user123' })),
+}));
+
 import handler from '../../api/bia.js';
+import { verificarToken } from '../../api/_auth.js';
 
 // Dublê mínimo do `res` do Node/Vercel: encadeia status().json() e guarda o que foi enviado.
 function criarRes() {
@@ -28,7 +37,10 @@ function respostaOk(texto = 'Análise da estante.') {
 }
 
 describe('handler api/bia', () => {
-  beforeEach(() => { process.env.GEMINI_API_KEY = 'chave-de-teste'; });
+  beforeEach(() => {
+    process.env.GEMINI_API_KEY = 'chave-de-teste';
+    verificarToken.mockResolvedValue({ uid: 'user123' });
+  });
   afterEach(() => { vi.unstubAllGlobals(); delete process.env.GEMINI_API_KEY; delete process.env.BIA_MODEL; });
 
   it('responde 200 com o texto do modelo', async () => {
@@ -190,6 +202,41 @@ describe('handler api/bia', () => {
     await handler(req({ pergunta: 'e aí?', contexto: 'x' }), res);
     expect(res.corpo.texto).toBe('Seu ritmo é irregular.');
     expect(res.corpo.texto).not.toMatch(/literary agent/i);
+  });
+
+  // O endpoint fica público assim que o site sobe: sem esta barreira, qualquer
+  // um chama em laço e esgota a cota gratuita do dono do app.
+  describe('autenticação', () => {
+    it('401 quando não há token', async () => {
+      verificarToken.mockResolvedValue({ erro: 'sem-token' });
+      const res = criarRes();
+      await handler(req({ pergunta: 'e aí?', contexto: 'x' }), res);
+      expect(res.statusCode).toBe(401);
+      expect(res.corpo.erro).toBe('precisa-login');
+    });
+
+    it('401 quando o token é inválido ou expirou', async () => {
+      verificarToken.mockResolvedValue({ erro: 'token-invalido' });
+      const res = criarRes();
+      await handler(req({ pergunta: 'e aí?', contexto: 'x' }), res);
+      expect(res.statusCode).toBe(401);
+    });
+
+    it('não chama o modelo quando a autenticação falha', async () => {
+      verificarToken.mockResolvedValue({ erro: 'sem-token' });
+      const espiao = vi.fn();
+      vi.stubGlobal('fetch', espiao);
+      await handler(req({ pergunta: 'e aí?', contexto: 'x' }), criarRes());
+      expect(espiao).not.toHaveBeenCalled(); // nenhum token da cota é gasto
+    });
+
+    it('503 quando o FIREBASE_PROJECT_ID não está configurado', async () => {
+      verificarToken.mockResolvedValue({ erro: 'sem-project-id' });
+      const res = criarRes();
+      await handler(req({ pergunta: 'e aí?', contexto: 'x' }), res);
+      expect(res.statusCode).toBe(503);
+      expect(res.corpo.erro).toBe('sem-config');
+    });
   });
 
   describe('erros', () => {

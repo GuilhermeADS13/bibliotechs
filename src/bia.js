@@ -12,6 +12,24 @@ const ENDPOINT = '/api/bia';
 const TIMEOUT_MS = 22000;
 
 /**
+ * Token do usuário logado, ou null.
+ *
+ * O import é dinâmico para o `firebase/auth` não entrar no caminho crítico de
+ * quem navega sem conta, e para este módulo continuar testável sem inicializar
+ * o Firebase.
+ */
+async function obterToken() {
+  try {
+    const { auth } = await import('./firebase');
+    const usuario = auth?.currentUser;
+    if (!usuario) return null;
+    return await usuario.getIdToken();
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Serializa a estante em texto para o modelo ler.
  * Só entram dados já calculados — nenhuma conta fica para o modelo fazer.
  */
@@ -117,18 +135,35 @@ export function prepararHistorico(mensagens) {
  * parecia uma resposta de verdade — o usuário via a mesma frase vazia repetida
  * sem saber que algo tinha quebrado. O motivo do erro agora sobe junto.
  */
-export async function perguntarAoModelo(pergunta, contexto, { sinal, historico } = {}) {
+export async function perguntarAoModelo(pergunta, contexto, { sinal, historico, aoReceber } = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   if (sinal) sinal.addEventListener('abort', () => controller.abort(), { once: true });
 
   try {
-    const res = await fetch(ENDPOINT, {
+    // Sem token o endpoint recusa (401). É o que impede um terceiro de descobrir
+    // a URL e torrar a cota gratuita do dia.
+    const token = await obterToken();
+    if (!token) return { texto: null, erro: 'precisa-login' };
+
+    // Streaming só quando alguém quer acompanhar a escrita; a resposta inteira
+    // demora o mesmo, mas as primeiras palavras aparecem bem antes.
+    const querStream = typeof aoReceber === 'function' && typeof ReadableStream !== 'undefined';
+
+    const res = await fetch(querStream ? `${ENDPOINT}?stream=1` : ENDPOINT, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
       signal: controller.signal,
       body: JSON.stringify({ pergunta, contexto, historico: prepararHistorico(historico) }),
     });
+
+    if (querStream && res.ok && res.body) {
+      const texto = await lerStream(res.body, aoReceber);
+      return texto ? { texto, erro: null } : { texto: null, erro: 'resposta-vazia' };
+    }
 
     if (!res.ok) {
       const corpo = await res.json().catch(() => null);
@@ -246,9 +281,94 @@ export function contextoDoLivro(info, livroNaEstante) {
   return linhas.join('\n');
 }
 
+/**
+ * Formata os candidatos do motor de recomendação para o contexto do modelo.
+ *
+ * A busca continua sendo feita em código (Google Books, filtrada pelo perfil);
+ * o modelo só escolhe entre os candidatos e justifica. Assim os títulos são
+ * reais e verificáveis, em vez de saírem da memória dele.
+ */
+export function contextoDeRecomendacoes(recomendacoes, perfil) {
+  const lista = Array.isArray(recomendacoes) ? recomendacoes : [];
+  if (lista.length === 0) {
+    return [
+      '',
+      '--- RECOMENDAÇÕES ---',
+      'A busca não retornou candidatos: ou a estante não tem leituras concluídas',
+      'com gênero/autor preenchidos, ou a API não achou títulos fora do acervo.',
+      'Recomende com sua própria bagagem literária e diga, em uma frase, que a',
+      'sugestão fica mais afinada conforme ela registrar e avaliar leituras.',
+      '--- FIM DAS RECOMENDAÇÕES ---',
+    ].join('\n');
+  }
+
+  const linhas = [
+    '',
+    '--- CANDIDATOS A RECOMENDAÇÃO (Google Books, reais) ---',
+  ];
+
+  for (const [i, r] of lista.entries()) {
+    const partes = [`${i + 1}. "${r.titulo}" — ${r.autor}`];
+    if (r.ano) partes.push(`(${r.ano})`);
+    if (r.genero) partes.push(`[${r.genero}]`);
+    if (r.ratingMedio > 0) partes.push(`avaliação ${r.ratingMedio}/5`);
+    linhas.push(partes.join(' '));
+    if (r.motivo) linhas.push(`   critério da busca: ${r.motivo}`);
+  }
+
+  if (perfil?.generosFavoritos?.length) {
+    linhas.push(
+      '',
+      `Perfil usado na busca: ${perfil.generosFavoritos.slice(0, 3).map(g => g.nome).join(', ')}`
+      + `${perfil.totalLidos ? ` · ${perfil.totalLidos} leitura(s) concluída(s)` : ''}`
+    );
+  }
+
+  linhas.push(
+    '',
+    'Escolha 2 ou 3 desta lista e explique por que combinam com o perfil. Uma',
+    'delas deve ROMPER o padrão de leitura — outro gênero, outra tradição, outro',
+    'registro — e você deve dizer claramente que é a escolha de ruptura e por quê.',
+    'Recomendar só o que já agrada reforça o viés que você existe para questionar.',
+    'Nunca invente títulos fora desta lista.',
+    '--- FIM DAS RECOMENDAÇÕES ---'
+  );
+
+  return linhas.join('\n');
+}
+
+/**
+ * Consome o corpo em texto puro, avisando a cada pedaço.
+ * Devolve o texto completo no fim — é ele que vai para o histórico.
+ */
+async function lerStream(corpo, aoReceber) {
+  const leitor = corpo.getReader();
+  const decodificador = new TextDecoder();
+  let completo = '';
+
+  try {
+    while (true) {
+      const { done, value } = await leitor.read();
+      if (done) break;
+      const pedaco = decodificador.decode(value, { stream: true });
+      if (!pedaco) continue;
+      completo += pedaco;
+      // Um erro no callback (render do React, por exemplo) não pode abortar a
+      // leitura: perderíamos o resto da resposta já paga.
+      try { aoReceber(completo); } catch {}
+    }
+  } catch {
+    // Conexão caiu no meio: o que chegou já vale mais que nada.
+  }
+
+  return completo.trim();
+}
+
 /** Explica a falha em linguagem de usuário, com o que fazer a respeito. */
 export function mensagemDeFalha(erro) {
   switch (erro) {
+    case 'precisa-login':
+      return 'Entre com sua conta Google para conversar comigo — só assim consigo analisar sua estante em linguagem natural. Sem login eu ainda respondo sobre estatísticas, resumos e recomendações.';
     case 'cota-esgotada':
       return 'Atingi o limite diário de consultas ao modelo. Amanhã volto ao normal — enquanto isso, ainda respondo sobre estatísticas, resumos e recomendações da sua estante.';
     case 'timeout':

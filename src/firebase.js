@@ -1,5 +1,4 @@
 import { initializeApp } from 'firebase/app';
-import { getFirestore } from 'firebase/firestore';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 
 const firebaseConfig = {
@@ -27,6 +26,26 @@ try {
   app = { isDummy: true };
 }
 
-export const db       = isFirebaseConfigured ? getFirestore(app) : null;
 export const auth     = isFirebaseConfigured ? getAuth(app) : { onAuthStateChanged: (auth, cb) => cb(null) };
 export const provider = isFirebaseConfigured ? new GoogleAuthProvider() : null;
+
+// O Firestore é o maior pedaço do Firebase (~250 KB) e só serve a quem tem
+// conta — sem login, livros e conversas ficam no localStorage. Carregado sob
+// demanda para não pesar no primeiro acesso de quem só está olhando o app.
+// A promessa é memorizada: o import roda uma vez por sessão.
+let firestorePromessa;
+
+export function carregarFirestore() {
+  if (!isFirebaseConfigured) return Promise.resolve(null);
+  if (!firestorePromessa) {
+    firestorePromessa = import('firebase/firestore')
+      .then(fs => ({ fs, db: fs.getFirestore(app) }))
+      .catch(e => {
+        // Não deixa a promessa rejeitada em cache: uma falha de rede pontual
+        // impediria qualquer tentativa posterior de carregar o Firestore.
+        firestorePromessa = undefined;
+        throw e;
+      });
+  }
+  return firestorePromessa;
+}

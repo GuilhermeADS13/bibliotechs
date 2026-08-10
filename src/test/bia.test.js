@@ -1,4 +1,10 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
+
+// perguntarAoModelo manda o token do Firebase no cabeçalho — sem ele o endpoint
+// devolve 401. O mock simula um usuário logado; um teste específico abaixo
+// cobre o caso sem login.
+const authMock = { currentUser: { getIdToken: vi.fn(async () => 'token-fake') } };
+vi.mock('../firebase', () => ({ auth: authMock }));
 import {
   montarContexto, perguntarAoModelo, prepararHistorico, mensagemDeFalha,
   identificarLivroMencionado, contextoDoLivro,
@@ -90,7 +96,107 @@ describe('prepararHistorico', () => {
 });
 
 describe('perguntarAoModelo', () => {
+  beforeEach(() => { authMock.currentUser = { getIdToken: vi.fn(async () => 'token-fake') }; });
   afterEach(() => { vi.unstubAllGlobals(); });
+
+  it('manda o token do usuário no cabeçalho Authorization', async () => {
+    const espiao = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ texto: 'ok' }) });
+    vi.stubGlobal('fetch', espiao);
+
+    await perguntarAoModelo('e aí?', 'ctx');
+    expect(espiao.mock.calls[0][1].headers.Authorization).toBe('Bearer token-fake');
+  });
+
+  it('nem tenta chamar o endpoint sem usuário logado', async () => {
+    authMock.currentUser = null;
+    const espiao = vi.fn();
+    vi.stubGlobal('fetch', espiao);
+
+    await expect(perguntarAoModelo('e aí?', 'ctx')).resolves.toEqual({
+      texto: null, erro: 'precisa-login',
+    });
+    expect(espiao).not.toHaveBeenCalled(); // requisição fadada ao 401 nem sai
+  });
+
+  // Streaming: as primeiras palavras aparecem antes de a resposta terminar.
+  describe('streaming', () => {
+    function corpoFalso(pedacos) {
+      const enc = new TextEncoder();
+      let i = 0;
+      return {
+        getReader: () => ({
+          read: async () => (i < pedacos.length
+            ? { done: false, value: enc.encode(pedacos[i++]) }
+            : { done: true }),
+        }),
+      };
+    }
+
+    it('pede o modo stream e entrega o texto crescendo', async () => {
+      const espiao = vi.fn().mockResolvedValue({
+        ok: true, body: corpoFalso(['Seu ritmo ', 'oscila ', 'bastante.']),
+      });
+      vi.stubGlobal('fetch', espiao);
+
+      const parciais = [];
+      const r = await perguntarAoModelo('e aí?', 'ctx', { aoReceber: t => parciais.push(t) });
+
+      expect(espiao.mock.calls[0][0]).toContain('stream=1');
+      expect(parciais).toEqual(['Seu ritmo ', 'Seu ritmo oscila ', 'Seu ritmo oscila bastante.']);
+      expect(r.texto).toBe('Seu ritmo oscila bastante.');
+    });
+
+    it('não pede stream quando ninguém acompanha', async () => {
+      const espiao = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ texto: 'ok' }) });
+      vi.stubGlobal('fetch', espiao);
+      await perguntarAoModelo('e aí?', 'ctx');
+      expect(espiao.mock.calls[0][0]).not.toContain('stream=1');
+    });
+
+    it('aproveita o que chegou se a conexão cair no meio', async () => {
+      const enc = new TextEncoder();
+      let n = 0;
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+        ok: true,
+        body: {
+          getReader: () => ({
+            read: async () => {
+              if (n++ === 0) return { done: false, value: enc.encode('Metade da frase') };
+              throw new Error('conexão caiu');
+            },
+          }),
+        },
+      }));
+
+      const r = await perguntarAoModelo('e aí?', 'ctx', { aoReceber: () => {} });
+      expect(r.texto).toBe('Metade da frase');
+    });
+
+    it('erro no callback não interrompe a leitura', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+        ok: true, body: corpoFalso(['um ', 'dois ', 'três']),
+      }));
+      // Se o render do React lançar, o resto da resposta (já paga) se perderia.
+      const r = await perguntarAoModelo('e aí?', 'ctx', {
+        aoReceber: () => { throw new Error('falha de render'); },
+      });
+      expect(r.texto).toBe('um dois três');
+    });
+
+    it('reporta resposta-vazia quando o stream não traz texto', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, body: corpoFalso(['']) }));
+      const r = await perguntarAoModelo('e aí?', 'ctx', { aoReceber: () => {} });
+      expect(r).toEqual({ texto: null, erro: 'resposta-vazia' });
+    });
+
+    it('cai no caminho JSON quando o endpoint recusa', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+        ok: false, status: 502, json: async () => ({ erro: 'cota-esgotada' }),
+      }));
+      const r = await perguntarAoModelo('e aí?', 'ctx', { aoReceber: () => {} });
+      expect(r).toEqual({ texto: null, erro: 'cota-esgotada' });
+    });
+  });
 
   it('devolve o texto quando a função responde', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
@@ -271,6 +377,12 @@ describe('contextoDoLivro', () => {
 });
 
 describe('mensagemDeFalha', () => {
+  it('explica que o login é necessário e o que ainda funciona sem ele', () => {
+    const m = mensagemDeFalha('precisa-login');
+    expect(m).toMatch(/Entre com sua conta/);
+    expect(m).toMatch(/estatísticas|resumos|recomendações/);
+  });
+
   // O texto genérico anterior fingia ser uma resposta e se repetia igual a cada
   // tentativa, escondendo do usuário que algo tinha quebrado.
   it('explica a cota esgotada e o que ainda funciona', () => {

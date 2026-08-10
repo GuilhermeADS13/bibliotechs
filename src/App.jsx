@@ -182,6 +182,21 @@ export default function App() {
         .heartbeat { animation: heartbeat 1.4s ease-in-out infinite; display:inline-block; }
         @media(max-width:520px) { .auth-label { display:none; } .auth-btn { padding: 10px 12px !important; } }
         @media(max-width:480px) { .stats-grid { grid-template-columns: repeat(2,1fr) !important; } }
+        @keyframes piscaCursor { 0%,49%{opacity:1} 50%,100%{opacity:0} }
+        .cursor-bia { animation: piscaCursor 1s step-end infinite; margin-left: 1px; }
+        /* Celular: o chat assume a tela inteira. Numa janela estreita, uma
+           caixa de 420x600 flutuando deixava pouco espaço para ler e digitar. */
+        @media(max-width:640px) {
+          .bia-chat {
+            inset: 0 !important;
+            width: 100% !important;
+            max-width: none !important;
+            height: 100% !important;
+            border-radius: 0 !important;
+            border: none !important;
+          }
+          .bia-chat > div:first-child { border-radius: 0 !important; }
+        }
       `}</style>
 
       {/* HEADER */}

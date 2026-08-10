@@ -5,6 +5,8 @@
 // público — qualquer pessoa abriria o DevTools e copiaria a chave. GEMINI_API_KEY
 // não tem esse prefixo, então só existe aqui, no servidor.
 
+import { verificarToken } from './_auth.js';
+
 const AI_STUDIO_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
 
 // Gemma e Gemini são servidos pela mesma chave. Trocar de modelo é trocar esta
@@ -41,6 +43,16 @@ export default async function handler(req, res) {
     return res.status(503).json({ erro: 'sem-chave' });
   }
 
+  // Endpoint fechado: a cota gratuita é do dono do app, não do mundo.
+  const auth = await verificarToken(req);
+  if (auth.erro) {
+    if (auth.erro === 'sem-project-id') {
+      console.error('FIREBASE_PROJECT_ID não configurado — /api/bia recusa tudo.');
+      return res.status(503).json({ erro: 'sem-config' });
+    }
+    return res.status(401).json({ erro: 'precisa-login' });
+  }
+
   const { pergunta, contexto, historico } = req.body || {};
 
   if (typeof pergunta !== 'string' || !pergunta.trim()) {
@@ -60,13 +72,17 @@ export default async function handler(req, res) {
 
   const modelo = process.env.BIA_MODEL || MODELO_PADRAO;
   const contents = montarContents({ pergunta, contexto, historico });
+  // Streaming é opt-in por query string: mantém o contrato JSON antigo intacto
+  // para qualquer cliente que não peça, inclusive o fallback do próprio front.
+  const querStream = req.query?.stream === '1';
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
   try {
+    const metodo = querStream ? 'streamGenerateContent?alt=sse&' : 'generateContent?';
     const resposta = await fetch(
-      `${AI_STUDIO_URL}/${encodeURIComponent(modelo)}:generateContent?key=${chave}`,
+      `${AI_STUDIO_URL}/${encodeURIComponent(modelo)}:${metodo}key=${chave}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -91,15 +107,10 @@ export default async function handler(req, res) {
       });
     }
 
+    if (querStream) return await repassarStream(resposta, res);
+
     const dados = await resposta.json();
-    // Descartar as parts marcadas com `thought`: o Gemma devolve o rascunho como
-    // primeira part (a instrução reescrita em inglês) e a resposta real como
-    // segunda. Sem este filtro, o rascunho apareceria no chat.
-    const texto = dados?.candidates?.[0]?.content?.parts
-      ?.filter(p => p?.thought !== true)
-      .map(p => p?.text || '')
-      .join('')
-      .trim();
+    const texto = extrairTexto(dados);
 
     if (!texto) {
       // Resposta vazia costuma significar bloqueio por filtro de segurança.
@@ -117,6 +128,69 @@ export default async function handler(req, res) {
   } finally {
     clearTimeout(timer);
   }
+}
+
+/**
+ * Junta as parts de texto, descartando as marcadas com `thought`.
+ *
+ * O Gemma devolve o rascunho como primeira part (a instrução reescrita em
+ * inglês) e a resposta real como segunda. Sem o filtro, o rascunho apareceria
+ * no chat.
+ */
+function extrairTexto(dados) {
+  return dados?.candidates?.[0]?.content?.parts
+    ?.filter(p => p?.thought !== true)
+    .map(p => p?.text || '')
+    .join('')
+    .trim();
+}
+
+/**
+ * Converte o SSE do Google em texto puro na resposta.
+ *
+ * Texto puro em vez de repassar o SSE porque o cliente só quer os pedaços da
+ * frase — reencaminhar o envelope obrigaria o front a parsear o formato do
+ * Google, acoplando os dois.
+ */
+async function repassarStream(resposta, res) {
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  // Sem isto, um proxy pode acumular a resposta e entregar tudo de uma vez,
+  // anulando o streaming.
+  res.setHeader('X-Accel-Buffering', 'no');
+
+  const leitor = resposta.body.getReader();
+  const decodificador = new TextDecoder();
+  let sobra = '';
+  let algumTexto = false;
+
+  while (true) {
+    const { done, value } = await leitor.read();
+    if (done) break;
+
+    sobra += decodificador.decode(value, { stream: true });
+    // Eventos SSE são separados por linha em branco; o resto fica para a
+    // próxima leitura porque um chunk pode cortar um evento ao meio.
+    const eventos = sobra.split('\n\n');
+    sobra = eventos.pop() || '';
+
+    for (const evento of eventos) {
+      const linha = evento.split('\n').find(l => l.startsWith('data:'));
+      if (!linha) continue;
+      try {
+        const pedaco = extrairTexto(JSON.parse(linha.slice(5).trim()));
+        if (pedaco) { res.write(pedaco); algumTexto = true; }
+      } catch {
+        // Evento malformado não pode derrubar o restante do fluxo.
+      }
+    }
+  }
+
+  // Nada de texto costuma significar bloqueio por filtro de segurança. Como o
+  // status 200 já foi enviado, o aviso vai no corpo e o cliente trata como
+  // falha por resposta vazia.
+  if (!algumTexto) res.write('');
+  return res.end();
 }
 
 function historicoLongoDemais(historico) {
