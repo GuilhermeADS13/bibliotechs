@@ -147,6 +147,105 @@ export async function perguntarAoModelo(pergunta, contexto, { sinal, historico }
   }
 }
 
+// Referências vagas a "o livro" — quando a pessoa não diz o título porque acha
+// óbvio de qual está falando. O prefixo (d|n) opcional cobre as contrações do
+// português: "desse livro", "neste livro", "daquele livro".
+const REFERENCIA_VAGA = new RegExp(
+  [
+    '\\b(?:d|n)?(?:esse|este|essa|esta|aquele|aquela)\\s+livro\\b',
+    '\\b(?:o|do|no|ao|meu|seu)\\s+livro\\b',
+    '\\blivro\\s+que\\s+eu\\b',
+    '\\bmesmo\\s+livro\\b',
+  ].join('|')
+);
+
+/**
+ * Descobre a qual livro da estante a pergunta se refere.
+ *
+ * Existe para que uma pergunta sobre uma obra puxe os dados reais do Google
+ * Books em vez de depender só da memória do modelo, que pode errar editora,
+ * ano ou número de páginas.
+ */
+export function identificarLivroMencionado(pergunta, livros, historico = []) {
+  const acervo = Array.isArray(livros) ? livros : [];
+  if (acervo.length === 0) return null;
+
+  const alvo = normalizarTexto(pergunta);
+
+  // 1. Título citado explicitamente. O mais longo primeiro, para "Duna" não
+  // roubar a vez de "Duna Messias" quando os dois estão na estante.
+  const porTitulo = acervo
+    .filter(l => typeof l?.titulo === 'string' && l.titulo.trim().length >= 3)
+    .sort((a, b) => b.titulo.length - a.titulo.length)
+    .find(l => alvo.includes(normalizarTexto(l.titulo)));
+  if (porTitulo) return porTitulo;
+
+  if (!REFERENCIA_VAGA.test(alvo)) return null;
+
+  // 2. Referência vaga com um só livro na estante: não há ambiguidade.
+  if (acervo.length === 1) return acervo[0];
+
+  // 3. Referência vaga com vários: só resolve se a conversa já tratou de um
+  // deles. Chutar o livro errado seria pior do que não responder.
+  const conversa = normalizarTexto(
+    (Array.isArray(historico) ? historico : []).map(m => m?.texto || '').join(' ')
+  );
+  const citados = acervo.filter(
+    l => typeof l?.titulo === 'string' && l.titulo.trim().length >= 3
+      && conversa.includes(normalizarTexto(l.titulo))
+  );
+  // "Duna" casa dentro de "Duna Messias": sem descartar os títulos contidos em
+  // outro título citado, a conversa pareceria ambígua e nada seria resolvido.
+  const distintos = citados.filter(l => !citados.some(
+    outro => outro !== l && normalizarTexto(outro.titulo).includes(normalizarTexto(l.titulo))
+  ));
+  if (distintos.length === 1) return distintos[0];
+
+  // 4. Referência vaga, vários livros, nenhum na conversa: prefere o que está
+  // sendo lido — é o candidato mais provável de "esse livro".
+  const lendo = acervo.filter(l => l?.status === 'lendo');
+  return lendo.length === 1 ? lendo[0] : null;
+}
+
+function normalizarTexto(texto) {
+  return String(texto || '')
+    .normalize('NFD')
+    .replace(/\p{Mn}/gu, '')
+    .toLowerCase()
+    .trim();
+}
+
+/** Formata os dados do Google Books para entrar no contexto do modelo. */
+export function contextoDoLivro(info, livroNaEstante) {
+  if (!info) return '';
+  const linhas = [
+    '',
+    '--- DADOS DO LIVRO (Google Books, verificados) ---',
+    `Título: ${info.titulo}`,
+    `Autor: ${info.autor}`,
+  ];
+  if (info.genero && info.genero !== 'Não especificado') linhas.push(`Gênero: ${info.genero}`);
+  if (info.paginas && info.paginas !== 'N/A') linhas.push(`Páginas: ${info.paginas}`);
+  if (info.editora && info.editora !== 'N/A') linhas.push(`Editora: ${info.editora}`);
+  // O Google Books devolve a data DESTA edição, não do lançamento original — o
+  // rótulo precisa dizer isso, senão a edição brasileira de 2015 de um livro de
+  // 1978 vira "lançado em 2015".
+  if (info.dataPublicacao && info.dataPublicacao !== 'N/A') {
+    linhas.push(`Publicação desta edição: ${info.dataPublicacao} (pode não ser o lançamento original)`);
+  }
+  if (info.ratingMedio && info.ratingMedio !== 'N/A') linhas.push(`Avaliação média: ${info.ratingMedio}/5`);
+  if (info.descricao && info.descricao !== 'Descrição não disponível') {
+    linhas.push('', `Sinopse oficial: ${info.descricao}`);
+  }
+  if (livroNaEstante) {
+    linhas.push('', `Na estante do leitor: status "${livroNaEstante.status}"`
+      + (Number(livroNaEstante.nota) > 0 ? `, nota ${livroNaEstante.nota}/5` : ', sem nota')
+      + (livroNaEstante.dataTermino ? `, concluído em ${livroNaEstante.dataTermino}` : ''));
+  }
+  linhas.push('--- FIM DOS DADOS DO LIVRO ---');
+  return linhas.join('\n');
+}
+
 /** Explica a falha em linguagem de usuário, com o que fazer a respeito. */
 export function mensagemDeFalha(erro) {
   switch (erro) {

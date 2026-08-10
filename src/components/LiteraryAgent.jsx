@@ -1,7 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { calcularEstatisticas, resumoMensalTexto, MESES_LONGOS } from '../estatisticas';
 import { gerarRecomendacoes } from '../recomendacoes';
-import { montarContexto, perguntarAoModelo, mensagemDeFalha } from '../bia';
+import {
+  montarContexto, perguntarAoModelo, mensagemDeFalha,
+  identificarLivroMencionado, contextoDoLivro,
+} from '../bia';
 import { BiaAvatar } from './BiaAvatar';
 import { useConversas, diaDeHoje, rotularDia } from '../hooks/useConversas';
 
@@ -121,9 +124,19 @@ export function LiteraryAgent({ livros, user, DA, GRAD_BTN, googleBooksKey }) {
       || p.includes('sugest') || p.includes('o que ler') || p.includes('que eu leio');
 
     if (!precisaBuscaExterna) {
+      // Se a pergunta fala de um livro da estante, busca os dados reais no
+      // Google Books e entrega prontos ao modelo. Sem isso ele responderia de
+      // memória e poderia errar editora, ano ou número de páginas.
+      let contexto = montarContexto(livros);
+      const livroCitado = identificarLivroMencionado(pergunta, livros, mensagens);
+      if (livroCitado) {
+        const info = await buscarLivroNaInternet(livroCitado.titulo, livroCitado.autor || '');
+        if (info) contexto += contextoDoLivro(info, livroCitado);
+      }
+
       // `mensagens` ainda não inclui a pergunta atual (o React só aplica o
       // estado no próximo render), então é exatamente o histórico anterior.
-      const { texto, erro } = await perguntarAoModelo(pergunta, montarContexto(livros), {
+      const { texto, erro } = await perguntarAoModelo(pergunta, contexto, {
         historico: mensagens,
       });
       if (texto) return texto;

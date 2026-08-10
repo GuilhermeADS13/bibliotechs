@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { montarContexto, perguntarAoModelo, prepararHistorico, mensagemDeFalha } from '../bia';
+import {
+  montarContexto, perguntarAoModelo, prepararHistorico, mensagemDeFalha,
+  identificarLivroMencionado, contextoDoLivro,
+} from '../bia';
 
 const acervo = [
   { id: 1, titulo: 'Dom Casmurro', autor: 'Machado de Assis', genero: 'Clássico', status: 'lido', nota: 5, dataTermino: '2026-03-10', paginas: 256 },
@@ -167,6 +170,103 @@ describe('perguntarAoModelo', () => {
   it('reporta resposta-vazia quando o texto vem em branco', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ texto: '   ' }) }));
     await expect(perguntarAoModelo('e aí?', 'ctx')).resolves.toEqual({ texto: null, erro: 'resposta-vazia' });
+  });
+});
+
+describe('identificarLivroMencionado', () => {
+  const estante = [
+    { id: 1, titulo: 'Coração Satânico', autor: 'William Hjortsberg', status: 'lendo' },
+    { id: 2, titulo: 'Duna', autor: 'Frank Herbert', status: 'lido' },
+    { id: 3, titulo: 'Duna Messias', autor: 'Frank Herbert', status: 'quero-ler' },
+  ];
+
+  it('acha o livro pelo título citado', () => {
+    expect(identificarLivroMencionado('me fala do Coração Satânico', estante)?.id).toBe(1);
+  });
+
+  it('ignora acento e caixa', () => {
+    expect(identificarLivroMencionado('quero saber sobre CORACAO SATANICO', estante)?.id).toBe(1);
+  });
+
+  // "Duna" está contido em "Duna Messias": sem preferir o título mais longo,
+  // a pergunta sobre a continuação traria o livro errado.
+  it('prefere o título mais longo quando um contém o outro', () => {
+    expect(identificarLivroMencionado('o que achou de Duna Messias?', estante)?.id).toBe(3);
+    expect(identificarLivroMencionado('o que achou de Duna?', estante)?.id).toBe(2);
+  });
+
+  it('resolve referência vaga quando só há um livro na estante', () => {
+    const um = [{ id: 9, titulo: 'Coração Satânico', autor: 'W. H.', status: 'lendo' }];
+    expect(identificarLivroMencionado('queria saber mais sobre o livro que eu coloquei', um)?.id).toBe(9);
+    expect(identificarLivroMencionado('me fala desse livro', um)?.id).toBe(9);
+  });
+
+  it('resolve referência vaga pelo livro já citado na conversa', () => {
+    const historico = [
+      { texto: 'me fala do Duna Messias' },
+      { texto: 'Duna Messias é a continuação...' },
+    ];
+    expect(identificarLivroMencionado('e esse livro é bom?', estante, historico)?.id).toBe(3);
+  });
+
+  it('cai no livro em leitura quando a referência é vaga e a conversa não ajuda', () => {
+    expect(identificarLivroMencionado('esse livro vale a pena?', estante, [])?.id).toBe(1);
+  });
+
+  it('não chuta quando não há como saber', () => {
+    const doisLendo = [
+      { id: 1, titulo: 'Duna', status: 'lendo' },
+      { id: 2, titulo: 'Ulysses', status: 'lendo' },
+    ];
+    expect(identificarLivroMencionado('esse livro vale a pena?', doisLendo, [])).toBeNull();
+  });
+
+  it('devolve null para pergunta sem relação com livro', () => {
+    expect(identificarLivroMencionado('meu ritmo está bom?', estante)).toBeNull();
+    expect(identificarLivroMencionado('quantos livros li por mês?', estante)).toBeNull();
+  });
+
+  it('não quebra com estante vazia ou inválida', () => {
+    expect(identificarLivroMencionado('esse livro', [])).toBeNull();
+    expect(identificarLivroMencionado('esse livro', null)).toBeNull();
+  });
+});
+
+describe('contextoDoLivro', () => {
+  const info = {
+    titulo: 'Coração Satânico', autor: 'William Hjortsberg', genero: 'Fiction',
+    paginas: 288, editora: 'DarkSide', dataPublicacao: '1978',
+    ratingMedio: 4, descricao: 'Um detetive procura um cantor desaparecido.',
+  };
+
+  it('marca a origem para o modelo saber que tem precedência', () => {
+    expect(contextoDoLivro(info)).toMatch(/Google Books, verificados/);
+  });
+
+  it('inclui os dados factuais que o modelo poderia errar de memória', () => {
+    const ctx = contextoDoLivro(info);
+    expect(ctx).toMatch(/Autor: William Hjortsberg/);
+    expect(ctx).toMatch(/Editora: DarkSide/);
+    expect(ctx).toMatch(/Páginas: 288/);
+    // Rotulado como edição: o Google Books devolve a data desta edição, e sem
+    // o aviso a edição de 2015 de um livro de 1978 viraria "lançado em 2015".
+    expect(ctx).toMatch(/Publicação desta edição: 1978/);
+    expect(ctx).toMatch(/pode não ser o lançamento original/);
+  });
+
+  it('junta a situação do livro na estante do leitor', () => {
+    const ctx = contextoDoLivro(info, { status: 'lido', nota: 5, dataTermino: '2026-03-10' });
+    expect(ctx).toMatch(/status "lido".*nota 5\/5.*concluído em 2026-03-10/);
+  });
+
+  it('omite campos ausentes em vez de escrever N/A', () => {
+    const ctx = contextoDoLivro({ titulo: 'X', autor: 'Y', paginas: 'N/A', editora: 'N/A' });
+    expect(ctx).not.toMatch(/N\/A/);
+    expect(ctx).not.toMatch(/Páginas:/);
+  });
+
+  it('devolve vazio quando a busca não achou nada', () => {
+    expect(contextoDoLivro(null)).toBe('');
   });
 });
 
