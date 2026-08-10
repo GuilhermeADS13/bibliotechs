@@ -7,5 +7,18 @@ service cloud.firestore {
       allow create: if request.auth != null
                     && request.resource.data.uid == request.auth.uid;
     }
+
+    // Conversas com a B.IA, um documento por usuario por dia.
+    // O id e "<uid>_<AAAA-MM-DD>": amarrar o id ao uid impede que alguem
+    // escreva no documento de outro usuario mesmo acertando o campo uid.
+    match /conversas/{conversaId} {
+      allow read, delete: if request.auth != null
+                          && request.auth.uid == resource.data.uid;
+      // `create` e `update` usam request.resource porque em create nao existe
+      // `resource` — sem isto o primeiro salvamento do dia seria negado.
+      allow create, update: if request.auth != null
+                            && request.resource.data.uid == request.auth.uid
+                            && conversaId == request.auth.uid + '_' + request.resource.data.dia;
+    }
   }
 }

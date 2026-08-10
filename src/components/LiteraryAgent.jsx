@@ -3,27 +3,47 @@ import { calcularEstatisticas, resumoMensalTexto, MESES_LONGOS } from '../estati
 import { gerarRecomendacoes } from '../recomendacoes';
 import { montarContexto, perguntarAoModelo } from '../bia';
 import { BiaAvatar } from './BiaAvatar';
+import { useConversas, diaDeHoje, rotularDia } from '../hooks/useConversas';
 
-export function LiteraryAgent({ livros, DA, GRAD_BTN, googleBooksKey }) {
-  const [mensagens, setMensagens] = useState([
-    {
-      id: 1,
-      tipo: 'bot',
-      texto: 'Saudações. Sou B.IA, sua Agente Literária Analítica 🧐. Minha função não é apenas catalogar, mas dissecar sua estante com rigor. Analiso seu ritmo mensal, recomendo obras a partir do seu histórico e busco resumos na internet. O que vamos analisar hoje?',
-      timestamp: new Date()
-    }
-  ]);
+const SAUDACAO = {
+  id: 1,
+  tipo: 'bot',
+  texto: 'Saudações. Sou B.IA, sua Agente Literária Analítica 🧐. Minha função não é apenas catalogar, mas dissecar sua estante com rigor. Analiso seu ritmo mensal, recomendo obras a partir do seu histórico e busco resumos na internet. O que vamos analisar hoje?',
+  timestamp: new Date(),
+};
+
+export function LiteraryAgent({ livros, user, DA, GRAD_BTN, googleBooksKey }) {
+  const { conversas, salvar, apagarDia } = useConversas(user);
+  const [mensagens, setMensagens] = useState([SAUDACAO]);
   const [entrada, setEntrada] = useState('');
   const [carregando, setCarregando] = useState(false);
   const [expandido, setExpandido] = useState(false);
+  const [verHistorico, setVerHistorico] = useState(false);
+  // null = conversa de hoje (editável). Uma data = dia anterior, só leitura.
+  const [diaVisto, setDiaVisto] = useState(null);
   const containerRef = useRef(null);
   const inputRef = useRef(null);
+
+  const hoje = diaDeHoje();
+  const diasSalvos = Object.keys(conversas).filter(d => d !== hoje).sort().reverse();
+  const soLeitura = diaVisto !== null;
+  const exibidas = soLeitura ? (conversas[diaVisto] || []) : mensagens;
+
+  // Traz a conversa de hoje quando ela chega do Firestore/localStorage. O
+  // guard de tamanho evita sobrescrever mensagens novas com a versão antiga
+  // que o onSnapshot devolve logo após um salvamento.
+  useEffect(() => {
+    const salvas = conversas[hoje];
+    if (Array.isArray(salvas) && salvas.length > mensagens.length) {
+      setMensagens(salvas);
+    }
+  }, [conversas, hoje]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (containerRef.current) {
       containerRef.current.scrollTop = containerRef.current.scrollHeight;
     }
-  }, [mensagens]);
+  }, [exibidas]);
 
   // Buscar informações do livro na Google Books API
   const buscarLivroNaInternet = async (titulo, autor = '') => {
@@ -249,7 +269,7 @@ export function LiteraryAgent({ livros, DA, GRAD_BTN, googleBooksKey }) {
   };
 
   const enviarMensagem = async () => {
-    if (!entrada.trim()) return;
+    if (!entrada.trim() || soLeitura) return;
 
     const novaMensagemUsuario = {
       id: Date.now(),
@@ -258,7 +278,8 @@ export function LiteraryAgent({ livros, DA, GRAD_BTN, googleBooksKey }) {
       timestamp: new Date()
     };
 
-    setMensagens(prev => [...prev, novaMensagemUsuario]);
+    const comPergunta = [...mensagens, novaMensagemUsuario];
+    setMensagens(comPergunta);
     setEntrada('');
     setCarregando(true);
 
@@ -272,13 +293,18 @@ export function LiteraryAgent({ livros, DA, GRAD_BTN, googleBooksKey }) {
       respostaTexto = 'Houve uma falha ao processar sua pergunta. Tente novamente.';
     }
 
-    setMensagens(prev => [...prev, {
+    const completa = [...comPergunta, {
       id: Date.now() + 1,
       tipo: 'bot',
       texto: respostaTexto,
       timestamp: new Date(),
-    }]);
+    }];
+    setMensagens(completa);
     setCarregando(false);
+
+    // Persiste só depois da resposta: gravar a cada mensagem dobraria as
+    // escritas sem ganho, já que a pergunta sozinha não tem valor de histórico.
+    salvar(hoje, completa);
   };
 
   const handleKeyPress = (e) => {
@@ -365,10 +391,30 @@ export function LiteraryAgent({ livros, DA, GRAD_BTN, googleBooksKey }) {
           fontSize: '15px',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
           <BiaAvatar size={32} borda />
-          <span>B.IA (Online)</span>
+          <div style={{ minWidth: 0 }}>
+            <div>B.IA</div>
+            <div style={{ fontSize: '11px', fontWeight: '600', opacity: 0.85 }}>
+              {soLeitura ? `Conversa de ${rotularDia(diaVisto, hoje)}` : 'Online'}
+            </div>
+          </div>
         </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          {(diasSalvos.length > 0 || soLeitura) && (
+            <button
+              onClick={() => setVerHistorico(v => !v)}
+              title="Conversas anteriores"
+              style={{
+                background: verHistorico ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.2)',
+                border: 'none', color: DA.cream, borderRadius: '6px',
+                height: '28px', padding: '0 10px', cursor: 'pointer',
+                fontWeight: '800', fontSize: '13px', fontFamily: 'inherit',
+              }}
+            >
+              🕘
+            </button>
+          )}
         <button
           onClick={() => setExpandido(false)}
           style={{
@@ -387,7 +433,93 @@ export function LiteraryAgent({ livros, DA, GRAD_BTN, googleBooksKey }) {
         >
           ✕
         </button>
+        </div>
       </div>
+
+      {/* Lista de dias anteriores. A conversa é cortada por dia automaticamente,
+          então não existe momento em que o usuário precise "limpar" nada. */}
+      {verHistorico && (
+        <div style={{
+          maxHeight: '190px', overflowY: 'auto',
+          background: 'rgba(44,26,20,0.06)',
+          borderBottom: '1px solid rgba(196,154,108,0.35)',
+        }}>
+          <button
+            onClick={() => { setDiaVisto(null); setVerHistorico(false); }}
+            style={{
+              width: '100%', textAlign: 'left', padding: '10px 16px',
+              background: soLeitura ? 'transparent' : 'rgba(196,154,108,0.25)',
+              border: 'none', borderBottom: '1px solid rgba(196,154,108,0.2)',
+              cursor: 'pointer', fontWeight: '800', fontSize: '13px',
+              color: DA.espresso, fontFamily: 'inherit',
+            }}
+          >
+            💬 Hoje {!soLeitura && '· em andamento'}
+          </button>
+
+          {diasSalvos.length === 0 ? (
+            <p style={{ padding: '12px 16px', fontSize: '12px', color: DA.walnut, opacity: 0.75 }}>
+              Ainda não há conversas de outros dias.
+            </p>
+          ) : diasSalvos.map(dia => (
+            <div key={dia} style={{
+              display: 'flex', alignItems: 'center',
+              borderBottom: '1px solid rgba(196,154,108,0.2)',
+            }}>
+              <button
+                onClick={() => { setDiaVisto(dia); setVerHistorico(false); }}
+                style={{
+                  flex: 1, textAlign: 'left', padding: '10px 16px',
+                  background: diaVisto === dia ? 'rgba(196,154,108,0.25)' : 'transparent',
+                  border: 'none', cursor: 'pointer', fontWeight: '700',
+                  fontSize: '13px', color: DA.espresso, fontFamily: 'inherit',
+                }}
+              >
+                {rotularDia(dia, hoje)}
+                <span style={{ fontWeight: '500', opacity: 0.65, marginLeft: '8px', fontSize: '11px' }}>
+                  {conversas[dia]?.length || 0} mensagens
+                </span>
+              </button>
+              <button
+                onClick={() => {
+                  if (confirm(`Apagar a conversa de ${rotularDia(dia, hoje)}?`)) {
+                    if (diaVisto === dia) setDiaVisto(null);
+                    apagarDia(dia);
+                  }
+                }}
+                title="Apagar esta conversa"
+                style={{
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  padding: '10px 14px', fontSize: '13px', color: DA.oxblood,
+                }}
+              >
+                🗑
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Aviso de leitura: sem ele o input desabilitado pareceria bug. */}
+      {soLeitura && (
+        <div style={{
+          padding: '9px 16px', fontSize: '12px', fontWeight: '600',
+          color: DA.walnut, background: 'rgba(196,154,108,0.18)',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px',
+        }}>
+          <span>Conversa encerrada — somente leitura.</span>
+          <button
+            onClick={() => setDiaVisto(null)}
+            style={{
+              background: 'none', border: `1px solid ${DA.oxblood}`, borderRadius: '6px',
+              padding: '4px 10px', cursor: 'pointer', fontWeight: '700',
+              fontSize: '11px', color: DA.oxblood, fontFamily: 'inherit', whiteSpace: 'nowrap',
+            }}
+          >
+            Voltar para hoje
+          </button>
+        </div>
+      )}
 
       <div
         ref={containerRef}
@@ -401,7 +533,7 @@ export function LiteraryAgent({ livros, DA, GRAD_BTN, googleBooksKey }) {
           background: 'rgba(245,240,224,0.5)',
         }}
       >
-        {mensagens.map(msg => (
+        {exibidas.map(msg => (
           <div
             key={msg.id}
             style={{
@@ -453,11 +585,13 @@ export function LiteraryAgent({ livros, DA, GRAD_BTN, googleBooksKey }) {
         <input
           ref={inputRef}
           type="text"
-          placeholder="Ex: 'Resuma [Título]' ou 'Quantos livros li por mês?'..."
+          placeholder={soLeitura
+            ? 'Volte para hoje para conversar'
+            : "Ex: 'Resuma [Título]' ou 'Quantos livros li por mês?'..."}
           value={entrada}
           onChange={e => setEntrada(e.target.value)}
           onKeyPress={handleKeyPress}
-          disabled={carregando}
+          disabled={carregando || soLeitura}
           style={{
             flex: 1,
             padding: '10px 12px',
@@ -471,7 +605,7 @@ export function LiteraryAgent({ livros, DA, GRAD_BTN, googleBooksKey }) {
         />
         <button
           onClick={enviarMensagem}
-          disabled={carregando || !entrada.trim()}
+          disabled={carregando || soLeitura || !entrada.trim()}
           style={{
             background: GRAD_BTN,
             color: DA.cream,

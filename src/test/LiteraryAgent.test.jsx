@@ -1,6 +1,11 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { LiteraryAgent } from '../components/LiteraryAgent';
+
+// O chat agora persiste a conversa do dia. Sem limpar entre os testes, um `it`
+// carregaria a conversa gravada pelo anterior e o mesmo texto apareceria duas
+// vezes na tela — quebrando as buscas por texto único.
+beforeEach(() => { localStorage.clear(); });
 
 const mockDA = {
   espresso: '#2C1A14',
