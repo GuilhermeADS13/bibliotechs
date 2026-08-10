@@ -202,31 +202,36 @@ export function LiteraryAgent({ livros, DA, GRAD_BTN, googleBooksKey }) {
           position: 'fixed',
           bottom: '24px',
           right: '24px',
-          width: '60px',
-          height: '60px',
+          width: '66px',
+          height: '66px',
           borderRadius: '50%',
-          background: GRAD_BTN,
-          border: 'none',
+          background: 'white',
+          border: `3px solid ${DA.oxblood}`,
           cursor: 'pointer',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          fontSize: '28px',
-          boxShadow: '0 4px 20px rgba(107,30,42,0.4)',
-          transition: 'transform .2s, box-shadow .2s',
+          padding: '0',
+          overflow: 'hidden',
+          boxShadow: '0 8px 24px rgba(107,30,42,0.35)',
+          transition: 'transform .25s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow .2s',
           zIndex: 999,
         }}
         onMouseEnter={e => {
-          e.currentTarget.style.transform = 'scale(1.1)';
-          e.currentTarget.style.boxShadow = '0 6px 28px rgba(107,30,42,0.5)';
+          e.currentTarget.style.transform = 'scale(1.1) rotate(5deg)';
+          e.currentTarget.style.boxShadow = '0 12px 32px rgba(107,30,42,0.45)';
         }}
         onMouseLeave={e => {
-          e.currentTarget.style.transform = 'scale(1)';
-          e.currentTarget.style.boxShadow = '0 4px 20px rgba(107,30,42,0.4)';
+          e.currentTarget.style.transform = 'scale(1) rotate(0deg)';
+          e.currentTarget.style.boxShadow = '0 8px 24px rgba(107,30,42,0.35)';
         }}
         title="Abrir B.IA"
       >
-        🧐
+        <img 
+          src="/assets/bia-icon.png" 
+          alt="B.IA" 
+          style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+        />
       </button>
     );
   }
@@ -255,7 +260,7 @@ export function LiteraryAgent({ livros, DA, GRAD_BTN, googleBooksKey }) {
         style={{
           background: GRAD_BTN,
           color: DA.cream,
-          padding: '16px',
+          padding: '12px 16px',
           borderRadius: '16px 16px 0 0',
           display: 'flex',
           alignItems: 'center',
@@ -264,7 +269,14 @@ export function LiteraryAgent({ livros, DA, GRAD_BTN, googleBooksKey }) {
           fontSize: '15px',
         }}
       >
-        <span>🧐 B.IA (Online)</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <img 
+            src="/assets/bia-icon.png" 
+            alt="B.IA" 
+            style={{ width: '32px', height: '32px', borderRadius: '50%', border: '2px solid white', objectFit: 'cover' }} 
+          />
+          <span>B.IA (Online)</span>
+        </div>
         <button
           onClick={() => setExpandido(false)}
           style={{
