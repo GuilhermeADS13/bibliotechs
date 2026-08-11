@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { calcularEstatisticas, resumoMensalTexto, MESES_LONGOS } from '../estatisticas';
-import { gerarRecomendacoes } from '../recomendacoes';
+import { gerarRecomendacoes, sugerirAutores } from '../recomendacoes';
 import {
   montarContexto, perguntarAoModelo, mensagemDeFalha,
   identificarLivroMencionado, contextoDoLivro, contextoDeRecomendacoes,
+  pedeAutorParecido, autorDeReferencia, contextoDeAutores,
 } from '../bia';
 import { BiaAvatar } from './BiaAvatar';
 import { diaDeHoje, rotularDia } from '../hooks/useConversas';
@@ -72,7 +73,17 @@ export function LiteraryAgent({
       const url = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}&maxResults=1${keyParam}`;
 
       const res = await fetch(url);
-      if (!res.ok) return null;
+      if (!res.ok) {
+        // Antes isto era um `return null` mudo, e a chave expirada passou
+        // despercebida: a B.IA seguia respondendo de memória como se nada
+        // tivesse falhado. O motivo agora fica no console.
+        const detalhe = await res.json().catch(() => null);
+        console.error(
+          'Google Books falhou:', res.status,
+          detalhe?.error?.message || '(sem detalhe)'
+        );
+        return null;
+      }
 
       const data = await res.json();
       const item = data.items?.[0];
@@ -143,9 +154,20 @@ export function LiteraryAgent({
       if (info) contexto += contextoDoLivro(info, livroCitado);
     }
 
+    // "Me indica um autor parecido com o X". A Google Books não tem endpoint de
+    // autores semelhantes, então o motor descobre os assuntos do autor de
+    // referência e busca outros nomes nesses assuntos — nomes reais, em vez de
+    // autores plausíveis que o modelo inventaria.
+    if (pedeAutorParecido(pergunta)) {
+      const referencia = autorDeReferencia(pergunta, livros, mensagens);
+      const resultado = referencia
+        ? await sugerirAutores(referencia, livros, { googleBooksKey, limite: 6 })
+        : { autores: [], generos: [], referencia: null, motivo: 'sem-autor' };
+      contexto += contextoDeAutores(resultado);
+    }
     // Candidatos vindos da Google Books, filtrados pelo perfil de leitura. O
     // modelo escolhe e justifica; a busca continua sendo feita em código.
-    if (querRecomendacao) {
+    else if (querRecomendacao) {
       const { recomendacoes, perfil } = await gerarRecomendacoes(livros, {
         googleBooksKey,
         limite: 6,

@@ -8,6 +8,8 @@
 import { calcularEstatisticas, MESES_LONGOS } from './estatisticas';
 import { perfilLeitor } from './recomendacoes';
 
+// `normalizarTexto` é declarado mais abaixo (function declaration, içada).
+
 const ENDPOINT = '/api/bia';
 const TIMEOUT_MS = 22000;
 
@@ -248,6 +250,111 @@ function normalizarTexto(texto) {
     .replace(/\p{Mn}/gu, '')
     .toLowerCase()
     .trim();
+}
+
+// "me indica um autor parecido", "quais outros autores", "escritores como o X".
+const PEDIDO_DE_AUTOR = new RegExp(
+  [
+    '\\bautor(?:es)?\\s+(?:parecid|semelhant|similar)',
+    '\\b(?:outros?|mais)\\s+autor(?:es)?\\b',
+    '\\bescritor(?:es)?\\s+(?:parecid|semelhant|similar|como)',
+    '\\bautor(?:es)?\\s+como\\b',
+    '\\bparecido\\s+com\\s+(?:o|a)?\\s*autor',
+    '\\bbaseado\\s+n(?:esse|este|o)\\s+autor',
+    '\\bquem\\s+(?:mais\\s+)?escreve\\s+(?:parecid|como|assim)',
+  ].join('|')
+);
+
+export function pedeAutorParecido(pergunta) {
+  return PEDIDO_DE_AUTOR.test(normalizarTexto(pergunta));
+}
+
+/**
+ * De qual autor a pessoa quer partir.
+ *
+ * Ordem: autor citado na pergunta > autor do livro citado > autor melhor
+ * avaliado da estante. Devolve null quando não há de onde partir, para o chat
+ * poder perguntar em vez de chutar.
+ */
+export function autorDeReferencia(pergunta, livros, historico = []) {
+  const acervo = Array.isArray(livros) ? livros : [];
+  const alvo = normalizarTexto(pergunta);
+
+  const autores = [...new Set(
+    acervo.flatMap(l => String(l?.autor || '').split(',').map(a => a.trim()).filter(a => a.length >= 3))
+  )].sort((a, b) => b.length - a.length);
+
+  // Citado diretamente na pergunta.
+  const citado = autores.find(a => alvo.includes(normalizarTexto(a)));
+  if (citado) return citado;
+
+  // Autor do livro de que se está falando.
+  const livro = identificarLivroMencionado(pergunta, acervo, historico);
+  if (livro?.autor) return String(livro.autor).split(',')[0].trim();
+
+  // Citado num turno anterior da conversa.
+  const conversa = normalizarTexto(
+    (Array.isArray(historico) ? historico : []).map(m => m?.texto || '').join(' ')
+  );
+  const naConversa = autores.find(a => conversa.includes(normalizarTexto(a)));
+  if (naConversa) return naConversa;
+
+  // Último recurso: o autor que ela melhor avalia. O split é porque o perfil
+  // agrupa pelo campo cru, que pode trazer coautoria ("Ana Silva, Bruno Costa")
+  // — e a busca no Google Books precisa de um nome só.
+  const favorito = perfilLeitor(acervo).autoresFavoritos[0]?.nome;
+  return favorito ? String(favorito).split(',')[0].trim() : null;
+}
+
+/** Formata a lista de autores para o modelo escolher e justificar. */
+export function contextoDeAutores({ autores, generos, referencia, motivo }) {
+  if (motivo === 'sem-autor' || !referencia) {
+    return [
+      '',
+      '--- AUTORES PARECIDOS ---',
+      'Não deu para saber de qual autor partir. Pergunte de quem a pessoa quer',
+      'algo parecido, em uma frase.',
+      '--- FIM ---',
+    ].join('\n');
+  }
+
+  if (!Array.isArray(autores) || autores.length === 0) {
+    return [
+      '',
+      '--- AUTORES PARECIDOS ---',
+      `Referência: ${referencia}. A busca não trouxe outros autores dos mesmos`,
+      'assuntos. Sugira com sua própria bagagem, deixando claro que a indicação',
+      'é sua e não veio de uma busca.',
+      '--- FIM ---',
+    ].join('\n');
+  }
+
+  const linhas = [
+    '',
+    '--- AUTORES PARECIDOS (Google Books, reais) ---',
+    `Partindo de: ${referencia}`,
+    `Assuntos em que ${referencia} publica: ${generos.join(', ')}`,
+    '',
+    'Outros autores nesses mesmos assuntos (nenhum já está na estante):',
+  ];
+
+  for (const [i, a] of autores.entries()) {
+    const partes = [`${i + 1}. ${a.autor}`];
+    if (a.exemplo) partes.push(`— ex.: "${a.exemplo}"${a.ano ? ` (${a.ano})` : ''}`);
+    if (a.ratingMedio > 0) partes.push(`· avaliação ${a.ratingMedio}/5`);
+    linhas.push(partes.join(' '));
+  }
+
+  linhas.push(
+    '',
+    `Escolha 2 ou 3 e diga, para cada, o que aproxima de ${referencia} — tema,`,
+    'estilo, época, tipo de narrador. Não é uma lista: é você explicando por que',
+    'a pessoa provavelmente vai gostar. Nunca invente autor fora desta lista;',
+    'se achar que falta alguém óbvio, diga que é palpite seu.',
+    '--- FIM ---'
+  );
+
+  return linhas.join('\n');
 }
 
 /** Formata os dados do Google Books para entrar no contexto do modelo. */

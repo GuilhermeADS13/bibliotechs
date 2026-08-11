@@ -8,6 +8,7 @@ vi.mock('../firebase', () => ({ auth: authMock }));
 import {
   montarContexto, perguntarAoModelo, prepararHistorico, mensagemDeFalha,
   identificarLivroMencionado, contextoDoLivro,
+  pedeAutorParecido, autorDeReferencia, contextoDeAutores,
 } from '../bia';
 
 const acervo = [
@@ -335,6 +336,116 @@ describe('identificarLivroMencionado', () => {
   it('não quebra com estante vazia ou inválida', () => {
     expect(identificarLivroMencionado('esse livro', [])).toBeNull();
     expect(identificarLivroMencionado('esse livro', null)).toBeNull();
+  });
+});
+
+// Pedido da cliente: "tipo: 'baseado nesse autor' me indica um autor parecido.
+// Aí vai no Google Books e vê o autor que mais se encaixa".
+describe('pedeAutorParecido', () => {
+  it('reconhece as formas que a cliente usou', () => {
+    expect(pedeAutorParecido('baseado nesse autor me indica um autor parecido')).toBe(true);
+    expect(pedeAutorParecido('quais outros autores voce me indica?')).toBe(true);
+  });
+
+  it('reconhece variações comuns', () => {
+    for (const p of [
+      'me indica um autor semelhante',
+      'tem escritor parecido com esse?',
+      'autores como Machado de Assis',
+      'quem mais escreve parecido?',
+      'queria mais autores desse tipo',
+      'escritores similares',
+    ]) {
+      expect(pedeAutorParecido(p), p).toBe(true);
+    }
+  });
+
+  it('ignora acento e caixa', () => {
+    expect(pedeAutorParecido('QUAIS OUTROS AUTORES?')).toBe(true);
+    expect(pedeAutorParecido('autores parecidos')).toBe(true);
+  });
+
+  it('não confunde com pedido de livro nem com pergunta sobre a estante', () => {
+    for (const p of [
+      'me recomende um livro',
+      'quantos livros li por mês?',
+      'quem escreveu Dom Casmurro?',
+      'qual autor eu mais leio?',
+    ]) {
+      expect(pedeAutorParecido(p), p).toBe(false);
+    }
+  });
+});
+
+describe('autorDeReferencia', () => {
+  const estante = [
+    { id: 1, titulo: 'Dom Casmurro', autor: 'Machado de Assis', status: 'lido', nota: 5 },
+    { id: 2, titulo: 'Duna', autor: 'Frank Herbert', status: 'lendo', nota: 0 },
+  ];
+
+  it('usa o autor citado na pergunta', () => {
+    expect(autorDeReferencia('autores como Frank Herbert', estante)).toBe('Frank Herbert');
+  });
+
+  it('usa o autor do livro citado', () => {
+    expect(autorDeReferencia('me indica autor parecido com Dom Casmurro', estante))
+      .toBe('Machado de Assis');
+  });
+
+  it('usa o autor citado num turno anterior', () => {
+    const historico = [{ texto: 'me fala do Duna' }, { texto: 'Duna é de Frank Herbert...' }];
+    expect(autorDeReferencia('e outros autores?', estante, historico)).toBe('Frank Herbert');
+  });
+
+  it('sem pista, cai no autor melhor avaliado', () => {
+    // Machado tem nota 5; Duna está em leitura e não pontua.
+    expect(autorDeReferencia('quais outros autores?', estante, [])).toBe('Machado de Assis');
+  });
+
+  it('devolve null com estante vazia, para o chat perguntar em vez de chutar', () => {
+    expect(autorDeReferencia('quais outros autores?', [], [])).toBeNull();
+  });
+
+  it('pega só o primeiro nome quando o campo tem vários', () => {
+    const coautoria = [{ id: 1, titulo: 'X', autor: 'Ana Silva, Bruno Costa', status: 'lido', nota: 5 }];
+    expect(autorDeReferencia('autor parecido com X', coautoria)).toBe('Ana Silva');
+  });
+});
+
+describe('contextoDeAutores', () => {
+  const base = {
+    referencia: 'Frank Herbert',
+    generos: ['Fiction', 'Science Fiction'],
+    motivo: 'ok',
+    autores: [
+      { autor: 'Isaac Asimov', exemplo: 'Fundação', ano: '1951', ratingMedio: 4 },
+      { autor: 'Ursula K. Le Guin', exemplo: 'A Mão Esquerda da Escuridão', ano: '1969', ratingMedio: 5 },
+    ],
+  };
+
+  it('marca a origem e nomeia a referência', () => {
+    const ctx = contextoDeAutores(base);
+    expect(ctx).toMatch(/Google Books, reais/);
+    expect(ctx).toMatch(/Partindo de: Frank Herbert/);
+    expect(ctx).toMatch(/Isaac Asimov.*Fundação.*1951/);
+  });
+
+  it('manda explicar a semelhança, não listar', () => {
+    const ctx = contextoDeAutores(base);
+    expect(ctx).toMatch(/o que aproxima de Frank Herbert/);
+    expect(ctx).toMatch(/Não é uma lista/);
+    expect(ctx).toMatch(/Nunca invente autor fora desta lista/);
+  });
+
+  it('sem autor de referência, manda perguntar', () => {
+    const ctx = contextoDeAutores({ autores: [], generos: [], referencia: null, motivo: 'sem-autor' });
+    expect(ctx).toMatch(/Pergunte de quem/);
+  });
+
+  it('busca vazia: permite palpite, mas exige avisar que é palpite', () => {
+    const ctx = contextoDeAutores({ ...base, autores: [], motivo: 'sem-resultados' });
+    expect(ctx).toMatch(/não trouxe outros autores/);
+    expect(ctx).toMatch(/indicação\s+é sua e não veio de uma busca/);
   });
 });
 
