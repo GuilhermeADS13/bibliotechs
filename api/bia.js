@@ -110,7 +110,9 @@ export default async function handler(req, res) {
     if (querStream) return await repassarStream(resposta, res);
 
     const dados = await resposta.json();
-    const texto = extrairTexto(dados);
+    // O `|| ''` cobre o caso sem `parts` (bloqueio por filtro de segurança),
+    // em que o encadeamento opcional devolve undefined.
+    const texto = (extrairTexto(dados) || '').trim();
 
     if (!texto) {
       // Resposta vazia costuma significar bloqueio por filtro de segurança.
@@ -138,11 +140,47 @@ export default async function handler(req, res) {
  * no chat.
  */
 function extrairTexto(dados) {
+  // Sem trim: em streaming isto roda por pedaço, e cortar o espaço do fim
+  // colaria as palavras ("Olha," + "dos livros" = "Olha,dos livros"). Quem
+  // monta o texto final é que apara as pontas.
   return dados?.candidates?.[0]?.content?.parts
     ?.filter(p => p?.thought !== true)
     .map(p => p?.text || '')
-    .join('')
-    .trim();
+    .join('');
+}
+
+/**
+ * Extrai os textos dos eventos SSE completos do buffer, devolvendo o resto.
+ *
+ * Separado e exportado porque um erro aqui derruba TODA resposta em silêncio, e
+ * foi o que aconteceu: o separador original era "\n\n", mas o Google manda
+ * "\r\n\r\n" — que não contém dois \n consecutivos. Nenhum evento era extraído,
+ * a resposta saía vazia e o chat mostrava a mensagem genérica de falha.
+ *
+ * O `resto` é devolvido porque um chunk da rede pode cortar um evento ao meio.
+ */
+export function consumirEventosSSE(buffer) {
+  const eventos = String(buffer || '').split(/\r?\n\r?\n/);
+  const resto = eventos.pop() || '';
+  const textos = [];
+
+  for (const evento of eventos) {
+    // O trim por linha também é por causa do CRLF: sem ele a linha chega como
+    // "\rdata: {...}" e o startsWith falha.
+    const linha = evento
+      .split(/\r?\n/)
+      .map(l => l.trim())
+      .find(l => l.startsWith('data:'));
+    if (!linha) continue;
+    try {
+      const pedaco = extrairTexto(JSON.parse(linha.slice(5).trim()));
+      if (pedaco) textos.push(pedaco);
+    } catch {
+      // Evento malformado não pode derrubar o restante do fluxo.
+    }
+  }
+
+  return { textos, resto };
 }
 
 /**
@@ -169,21 +207,9 @@ async function repassarStream(resposta, res) {
     if (done) break;
 
     sobra += decodificador.decode(value, { stream: true });
-    // Eventos SSE são separados por linha em branco; o resto fica para a
-    // próxima leitura porque um chunk pode cortar um evento ao meio.
-    const eventos = sobra.split('\n\n');
-    sobra = eventos.pop() || '';
-
-    for (const evento of eventos) {
-      const linha = evento.split('\n').find(l => l.startsWith('data:'));
-      if (!linha) continue;
-      try {
-        const pedaco = extrairTexto(JSON.parse(linha.slice(5).trim()));
-        if (pedaco) { res.write(pedaco); algumTexto = true; }
-      } catch {
-        // Evento malformado não pode derrubar o restante do fluxo.
-      }
-    }
+    const { textos, resto } = consumirEventosSSE(sobra);
+    sobra = resto;
+    for (const pedaco of textos) { res.write(pedaco); algumTexto = true; }
   }
 
   // Nada de texto costuma significar bloqueio por filtro de segurança. Como o

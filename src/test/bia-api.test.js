@@ -13,8 +13,62 @@ vi.mock('../../api/_auth.js', () => ({
   verificarToken: vi.fn(async () => ({ uid: 'user123' })),
 }));
 
-import handler from '../../api/bia.js';
+import handler, { consumirEventosSSE } from '../../api/bia.js';
 import { verificarToken } from '../../api/_auth.js';
+
+// Este parser nao tinha teste, e por isso um bug nele passou para producao: o
+// separador era "\n\n", mas o Google manda "\r\n\r\n". Como toda pergunta
+// passa pelo streaming, TODA resposta saia vazia e virava a mensagem generica
+// de falha — sem nenhum erro no log.
+describe('consumirEventosSSE', () => {
+  const evento = (texto) =>
+    `data: ${JSON.stringify({ candidates: [{ content: { parts: [{ text: texto }] } }] })}`;
+
+  it('lê eventos separados por CRLF, como o Google envia', () => {
+    const buffer = `${evento('Olha, ')}\r\n\r\n${evento('dos 20 livros')}\r\n\r\n`;
+    expect(consumirEventosSSE(buffer).textos).toEqual(['Olha, ', 'dos 20 livros']);
+  });
+
+  it('lê também com LF simples', () => {
+    const buffer = `${evento('um ')}\n\n${evento('dois')}\n\n`;
+    expect(consumirEventosSSE(buffer).textos).toEqual(['um ', 'dois']);
+  });
+
+  it('guarda o evento incompleto para a próxima leitura', () => {
+    // Um chunk da rede pode cortar o JSON ao meio.
+    const { textos, resto } = consumirEventosSSE(`${evento('completo')}\r\n\r\ndata: {"candi`);
+    expect(textos).toEqual(['completo']);
+    expect(resto).toBe('data: {"candi');
+  });
+
+  it('junta o evento cortado quando o resto chega depois', () => {
+    const inteiro = evento('inteiro');
+    const corte = Math.floor(inteiro.length / 2);
+    const primeiro = consumirEventosSSE(inteiro.slice(0, corte));
+    expect(primeiro.textos).toEqual([]);
+    const segundo = consumirEventosSSE(primeiro.resto + inteiro.slice(corte) + '\r\n\r\n');
+    expect(segundo.textos).toEqual(['inteiro']);
+  });
+
+  it('descarta o rascunho do Gemma também no stream', () => {
+    const bruto = `data: ${JSON.stringify({ candidates: [{ content: { parts: [
+      { text: 'B.IA, literary agent.', thought: true },
+      { text: 'Resposta real.' },
+    ] } }] })}\r\n\r\n`;
+    expect(consumirEventosSSE(bruto).textos).toEqual(['Resposta real.']);
+  });
+
+  it('ignora evento malformado sem derrubar os demais', () => {
+    const buffer = `data: {json quebrado\r\n\r\n${evento('sobrevivi')}\r\n\r\n`;
+    expect(consumirEventosSSE(buffer).textos).toEqual(['sobrevivi']);
+  });
+
+  it('não quebra com buffer vazio ou inválido', () => {
+    expect(consumirEventosSSE('').textos).toEqual([]);
+    expect(consumirEventosSSE(null).textos).toEqual([]);
+    expect(consumirEventosSSE(': keep-alive\r\n\r\n').textos).toEqual([]);
+  });
+});
 
 // Dublê mínimo do `res` do Node/Vercel: encadeia status().json() e guarda o que foi enviado.
 function criarRes() {
