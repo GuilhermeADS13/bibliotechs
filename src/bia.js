@@ -13,6 +13,12 @@ import { perfilLeitor } from './recomendacoes';
 const ENDPOINT = '/api/bia';
 const TIMEOUT_MS = 22000;
 
+// Tetos das resenhas no contexto. Existem porque o servidor recusa contexto
+// acima de 20 mil caracteres: sem limite, uma estante de quem escreve muito
+// derrubaria a resposta inteira.
+const MAX_RESENHAS = 8;
+const MAX_CHARS_RESENHA = 500;
+
 /**
  * Token do usuário logado, ou null.
  *
@@ -112,6 +118,29 @@ export function montarContexto(livros, ano = new Date().getFullYear()) {
   const lendo = acervo.filter(l => l?.status === 'lendo');
   if (lendo.length > 0) {
     linhas.push('', `Lendo agora: ${lendo.map(l => `"${l.titulo}"`).join(', ')}`);
+  }
+
+  // As resenhas são o dado mais rico da estante e não chegavam ao modelo: ele
+  // sabia que a pessoa deu 5 estrelas, mas não por quê. São as palavras dela,
+  // não estatística — daí a seção própria e o destaque na instrução.
+  const comResenha = acervo
+    .filter(l => typeof l?.resenha === 'string' && l.resenha.trim().length > 0)
+    .sort((a, b) => String(b.dataTermino || '').localeCompare(String(a.dataTermino || '')))
+    .slice(0, MAX_RESENHAS);
+
+  if (comResenha.length > 0) {
+    linhas.push('', 'O QUE A PESSOA ESCREVEU SOBRE OS LIVROS (palavras dela, não suas):');
+    for (const l of comResenha) {
+      const texto = l.resenha.trim();
+      // Truncar em vez de descartar: uma resenha longa cortada ainda diz muito,
+      // e sem teto uma estante de resenhistas estouraria o limite do contexto.
+      const recorte = texto.length > MAX_CHARS_RESENHA
+        ? `${texto.slice(0, MAX_CHARS_RESENHA).trimEnd()}… [resenha truncada]`
+        : texto;
+      const cabecalho = [`"${l.titulo}"`];
+      if (Number(l.nota) > 0) cabecalho.push(`(nota ${l.nota}/5)`);
+      linhas.push('', `${cabecalho.join(' ')}: ${recorte}`);
+    }
   }
 
   return linhas.join('\n');
@@ -390,6 +419,16 @@ export function contextoDoLivro(info, livroNaEstante) {
     linhas.push('', `Na estante do leitor: status "${livroNaEstante.status}"`
       + (Number(livroNaEstante.nota) > 0 ? `, nota ${livroNaEstante.nota}/5` : ', sem nota')
       + (livroNaEstante.dataTermino ? `, concluído em ${livroNaEstante.dataTermino}` : ''));
+
+    // Falando deste livro em específico, o que a pessoa escreveu sobre ele vale
+    // mais que qualquer metadado — é a opinião dela, e ela espera ser lembrada.
+    const resenha = typeof livroNaEstante.resenha === 'string' ? livroNaEstante.resenha.trim() : '';
+    if (resenha) {
+      const recorte = resenha.length > MAX_CHARS_RESENHA
+        ? `${resenha.slice(0, MAX_CHARS_RESENHA).trimEnd()}… [truncada]`
+        : resenha;
+      linhas.push('', `O que a pessoa escreveu sobre este livro: ${recorte}`);
+    }
   }
   linhas.push('--- FIM DOS DADOS DO LIVRO ---');
   return linhas.join('\n');

@@ -55,6 +55,65 @@ describe('montarContexto', () => {
     expect(montarContexto(acervo, 2026)).toMatch(/Lendo agora: "Duna"/);
   });
 
+  // As resenhas são o dado mais rico da estante e não chegavam ao modelo: ele
+  // sabia que a pessoa deu 5 estrelas, mas não por quê.
+  describe('resenhas', () => {
+    const comResenhas = [
+      { id: 1, titulo: 'Dom Casmurro', autor: 'Machado', status: 'lido', nota: 5,
+        dataTermino: '2026-03-10', resenha: 'O Bentinho me irritou do começo ao fim.' },
+      { id: 2, titulo: 'Duna', autor: 'Herbert', status: 'lido', nota: 4,
+        dataTermino: '2026-02-01', resenha: 'Demorou pra engrenar mas valeu.' },
+      { id: 3, titulo: 'Sem Resenha', status: 'lido', nota: 3, dataTermino: '2026-01-01' },
+    ];
+
+    it('inclui o que a pessoa escreveu, com o título e a nota', () => {
+      const ctx = montarContexto(comResenhas, 2026);
+      expect(ctx).toMatch(/O QUE A PESSOA ESCREVEU/);
+      expect(ctx).toMatch(/"Dom Casmurro" \(nota 5\/5\): O Bentinho me irritou/);
+      expect(ctx).toMatch(/Demorou pra engrenar/);
+    });
+
+    it('deixa claro que são palavras dela, não da B.IA', () => {
+      expect(montarContexto(comResenhas, 2026)).toMatch(/palavras dela, não suas/);
+    });
+
+    it('ignora livros sem resenha e resenha em branco', () => {
+      const ctx = montarContexto([
+        ...comResenhas,
+        { id: 4, titulo: 'Branca', status: 'lido', resenha: '   ' },
+      ], 2026);
+      expect(ctx).not.toMatch(/"Sem Resenha" \(/);
+      expect(ctx).not.toMatch(/"Branca" \(/);
+    });
+
+    it('não cria a seção quando ninguém escreveu nada', () => {
+      const semNenhuma = [{ id: 1, titulo: 'X', status: 'lido', dataTermino: '2026-01-01' }];
+      expect(montarContexto(semNenhuma, 2026)).not.toMatch(/O QUE A PESSOA ESCREVEU/);
+    });
+
+    // Sem teto, uma estante de quem escreve muito estouraria o limite de 20 mil
+    // caracteres do servidor e derrubaria a resposta inteira.
+    it('trunca resenha longa em vez de descartar', () => {
+      const longa = [{ id: 1, titulo: 'Épico', status: 'lido', dataTermino: '2026-01-01',
+        resenha: 'a'.repeat(2000) }];
+      const ctx = montarContexto(longa, 2026);
+      expect(ctx).toMatch(/\[resenha truncada\]/);
+      expect(ctx.length).toBeLessThan(1500);
+    });
+
+    it('limita a quantidade, priorizando as leituras mais recentes', () => {
+      const muitas = Array.from({ length: 15 }, (_, i) => ({
+        id: i, titulo: `Livro ${i}`, status: 'lido',
+        dataTermino: `2026-01-${String(i + 1).padStart(2, '0')}`,
+        resenha: `resenha do livro ${i}`,
+      }));
+      const ctx = montarContexto(muitas, 2026);
+      expect(ctx).toMatch(/resenha do livro 14/);  // a mais recente entra
+      expect(ctx).not.toMatch(/resenha do livro 0\b/); // a mais antiga fica de fora
+      expect((ctx.match(/resenha do livro/g) || [])).toHaveLength(8);
+    });
+  });
+
   it('não inventa páginas quando o campo está ausente', () => {
     const semPaginas = [{ id: 1, titulo: 'X', status: 'lido', dataTermino: '2026-01-05' }];
     expect(montarContexto(semPaginas, 2026)).not.toMatch(/Páginas em/);
