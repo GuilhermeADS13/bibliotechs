@@ -413,39 +413,43 @@ describe('autorDeReferencia', () => {
 });
 
 describe('contextoDeAutores', () => {
-  const base = {
-    referencia: 'Frank Herbert',
-    generos: ['Fiction', 'Science Fiction'],
-    motivo: 'ok',
-    autores: [
-      { autor: 'Isaac Asimov', exemplo: 'Fundação', ano: '1951', ratingMedio: 4 },
-      { autor: 'Ursula K. Le Guin', exemplo: 'A Mão Esquerda da Escuridão', ano: '1969', ratingMedio: 5 },
-    ],
-  };
-
-  it('marca a origem e nomeia a referência', () => {
-    const ctx = contextoDeAutores(base);
-    expect(ctx).toMatch(/Google Books, reais/);
-    expect(ctx).toMatch(/Partindo de: Frank Herbert/);
-    expect(ctx).toMatch(/Isaac Asimov.*Fundação.*1951/);
-  });
-
-  it('manda explicar a semelhança, não listar', () => {
-    const ctx = contextoDeAutores(base);
-    expect(ctx).toMatch(/o que aproxima de Frank Herbert/);
+  it('nomeia a referência e manda explicar a semelhança', () => {
+    const ctx = contextoDeAutores('Frank Herbert');
+    expect(ctx).toMatch(/Referência: Frank Herbert/);
+    expect(ctx).toMatch(/conversam com Frank Herbert/);
     expect(ctx).toMatch(/Não é uma lista/);
-    expect(ctx).toMatch(/Nunca invente autor fora desta lista/);
   });
 
-  it('sem autor de referência, manda perguntar', () => {
-    const ctx = contextoDeAutores({ autores: [], generos: [], referencia: null, motivo: 'sem-autor' });
+  // Aqui quem sugere é o modelo — duas tentativas de fundamentar pela Google
+  // Books deram resultado pior que o dele (assunto genérico demais; bibliografia
+  // enviesada para coletâneas). A guarda contra invenção muda de forma: não há
+  // lista fechada, há exigência de certeza.
+  it('exige certeza sobre autor e obra citados', () => {
+    const ctx = contextoDeAutores('Frank Herbert');
+    expect(ctx).toMatch(/existência conhecida/);
+    expect(ctx).toMatch(/fale do autor sem citar obra/);
+  });
+
+  it('avisa quais autores não sugerir', () => {
+    const ctx = contextoDeAutores('Frank Herbert', [
+      { autor: 'Isaac Asimov' },
+      { autor: 'Ursula K. Le Guin' },
+    ]);
+    expect(ctx).toMatch(/já lê \(não sugira estes\): Isaac Asimov, Ursula K. Le Guin/);
+  });
+
+  it('separa coautoria e não repete nome', () => {
+    const ctx = contextoDeAutores('Frank Herbert', [
+      { autor: 'Ana Silva, Bruno Costa' },
+      { autor: 'Ana Silva' },
+    ]);
+    expect(ctx).toMatch(/não sugira estes\): Ana Silva, Bruno Costa$/m);
+  });
+
+  it('sem autor de referência, manda perguntar em vez de chutar', () => {
+    const ctx = contextoDeAutores(null);
     expect(ctx).toMatch(/Pergunte de quem/);
-  });
-
-  it('busca vazia: permite palpite, mas exige avisar que é palpite', () => {
-    const ctx = contextoDeAutores({ ...base, autores: [], motivo: 'sem-resultados' });
-    expect(ctx).toMatch(/não trouxe outros autores/);
-    expect(ctx).toMatch(/indicação\s+é sua e não veio de uma busca/);
+    expect(ctx).not.toMatch(/conversam com/);
   });
 });
 

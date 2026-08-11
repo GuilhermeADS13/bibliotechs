@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { calcularEstatisticas, resumoMensalTexto, MESES_LONGOS } from '../estatisticas';
-import { gerarRecomendacoes, sugerirAutores } from '../recomendacoes';
+import { gerarRecomendacoes } from '../recomendacoes';
 import {
   montarContexto, perguntarAoModelo, mensagemDeFalha,
   identificarLivroMencionado, contextoDoLivro, contextoDeRecomendacoes,
@@ -154,16 +154,11 @@ export function LiteraryAgent({
       if (info) contexto += contextoDoLivro(info, livroCitado);
     }
 
-    // "Me indica um autor parecido com o X". A Google Books não tem endpoint de
-    // autores semelhantes, então o motor descobre os assuntos do autor de
-    // referência e busca outros nomes nesses assuntos — nomes reais, em vez de
-    // autores plausíveis que o modelo inventaria.
+    // "Me indica um autor parecido com o X". Sem consultar a Google Books: a
+    // API não sabe responder isso (detalhes em contextoDeAutores). O que o
+    // código faz é descobrir de qual autor partir, usando a estante.
     if (pedeAutorParecido(pergunta)) {
-      const referencia = autorDeReferencia(pergunta, livros, mensagens);
-      const resultado = referencia
-        ? await sugerirAutores(referencia, livros, { googleBooksKey, limite: 6 })
-        : { autores: [], generos: [], referencia: null, motivo: 'sem-autor' };
-      contexto += contextoDeAutores(resultado);
+      contexto += contextoDeAutores(autorDeReferencia(pergunta, livros, mensagens), livros);
     }
     // Candidatos vindos da Google Books, filtrados pelo perfil de leitura. O
     // modelo escolhe e justifica; a busca continua sendo feita em código.
@@ -381,44 +376,67 @@ export function LiteraryAgent({
 
   if (!expandido) {
     return (
+      /* O ícone sozinho não dizia o que era: uma foto de rosto no canto da tela
+         não se explica. O rótulo fica acima dele, com nome e função. */
       <button
         onClick={() => setExpandido(true)}
+        title="Abrir B.IA"
+        aria-label="Abrir conversa com a B.IA, sua agente literária"
         style={{
           position: 'fixed',
           bottom: '24px',
           right: '24px',
+          background: 'none',
+          border: 'none',
+          padding: 0,
+          cursor: 'pointer',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '7px',
+          zIndex: 999,
+          transition: 'transform .25s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+        }}
+        onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.06)'; }}
+        onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; }}
+      >
+        <span style={{
+          background: GRAD_BTN,
+          color: DA.cream,
+          borderRadius: '999px',
+          padding: '5px 12px',
+          fontSize: '11px',
+          fontWeight: '800',
+          lineHeight: 1.35,
+          textAlign: 'center',
+          whiteSpace: 'nowrap',
+          boxShadow: '0 4px 14px rgba(107,30,42,0.35)',
+          border: '1px solid rgba(255,255,255,0.25)',
+        }}>
+          B.IA
+          <span style={{ display: 'block', fontSize: '9px', fontWeight: '600', opacity: 0.9 }}>
+            Agente Literária
+          </span>
+        </span>
+
+        <span style={{
           width: '66px',
           height: '66px',
           borderRadius: '50%',
           background: 'white',
           border: `3px solid ${DA.oxblood}`,
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '0',
           overflow: 'hidden',
+          display: 'block',
           boxShadow: '0 8px 24px rgba(107,30,42,0.35)',
-          transition: 'transform .25s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow .2s',
-          zIndex: 999,
-        }}
-        onMouseEnter={e => {
-          e.currentTarget.style.transform = 'scale(1.1) rotate(5deg)';
-          e.currentTarget.style.boxShadow = '0 12px 32px rgba(107,30,42,0.45)';
-        }}
-        onMouseLeave={e => {
-          e.currentTarget.style.transform = 'scale(1) rotate(0deg)';
-          e.currentTarget.style.boxShadow = '0 8px 24px rgba(107,30,42,0.35)';
-        }}
-        title="Abrir B.IA"
-      >
-        <img
-          src="/assets/bia-icon.jpg"
-          alt="B.IA"
-          width="66"
-          height="66"
-          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-        />
+        }}>
+          <img
+            src="/assets/bia-icon.jpg"
+            alt=""
+            width="66"
+            height="66"
+            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+          />
+        </span>
       </button>
     );
   }
@@ -465,7 +483,9 @@ export function LiteraryAgent({
           <div style={{ minWidth: 0 }}>
             <div>B.IA</div>
             <div style={{ fontSize: '11px', fontWeight: '600', opacity: 0.85 }}>
-              {soLeitura ? `Conversa de ${rotularDia(diaVisto, hoje)}` : 'Online'}
+              {/* "Online" não dizia o que ela faz; quem abre pela primeira vez
+                  precisa saber com o que está falando. */}
+              {soLeitura ? `Conversa de ${rotularDia(diaVisto, hoje)}` : 'Agente Literária'}
             </div>
           </div>
         </div>

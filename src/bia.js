@@ -306,51 +306,58 @@ export function autorDeReferencia(pergunta, livros, historico = []) {
   return favorito ? String(favorito).split(',')[0].trim() : null;
 }
 
-/** Formata a lista de autores para o modelo escolher e justificar. */
-export function contextoDeAutores({ autores, generos, referencia, motivo }) {
-  if (motivo === 'sem-autor' || !referencia) {
+/**
+ * Contexto para "me indica um autor parecido".
+ *
+ * Aqui a divisão de trabalho é o INVERSO da usada nas estatísticas: quem sugere
+ * é o modelo, sem consultar a Google Books. Duas tentativas de fundamentar pela
+ * API falharam, e ambas piorariam a resposta:
+ *
+ * 1. Buscar por assunto: a API classifica todo Frank Herbert como "Fiction", e
+ *    `subject:Fiction` devolveu dicionário Merriam-Webster e Jane Austen como
+ *    "parecidos" com ele. `subject:Science Fiction` devolve livros acadêmicos
+ *    SOBRE ficção científica.
+ * 2. Trazer a bibliografia do autor: o ranking de `inauthor:` favorece
+ *    coletâneas e livros com o nome do autor no título — para Frank Herbert
+ *    veio "The Collected Stories", e nenhum "Duna".
+ *
+ * Semelhança entre autores é conhecimento literário estabelecido, que o modelo
+ * domina e onde não costuma alucinar. Fundamentar com dado ruim seria pior que
+ * não fundamentar. O que ancora a resposta é a estante da pessoa, que já está
+ * no contexto principal.
+ */
+export function contextoDeAutores(referencia, jaNaEstante = []) {
+  if (!referencia) {
     return [
       '',
-      '--- AUTORES PARECIDOS ---',
+      '--- PEDIDO: AUTOR PARECIDO ---',
       'Não deu para saber de qual autor partir. Pergunte de quem a pessoa quer',
       'algo parecido, em uma frase.',
       '--- FIM ---',
     ].join('\n');
   }
 
-  if (!Array.isArray(autores) || autores.length === 0) {
-    return [
-      '',
-      '--- AUTORES PARECIDOS ---',
-      `Referência: ${referencia}. A busca não trouxe outros autores dos mesmos`,
-      'assuntos. Sugira com sua própria bagagem, deixando claro que a indicação',
-      'é sua e não veio de uma busca.',
-      '--- FIM ---',
-    ].join('\n');
-  }
+  const linhas = ['', '--- PEDIDO: AUTOR PARECIDO ---', `Referência: ${referencia}`];
 
-  const linhas = [
-    '',
-    '--- AUTORES PARECIDOS (Google Books, reais) ---',
-    `Partindo de: ${referencia}`,
-    `Assuntos em que ${referencia} publica: ${generos.join(', ')}`,
-    '',
-    'Outros autores nesses mesmos assuntos (nenhum já está na estante):',
-  ];
-
-  for (const [i, a] of autores.entries()) {
-    const partes = [`${i + 1}. ${a.autor}`];
-    if (a.exemplo) partes.push(`— ex.: "${a.exemplo}"${a.ano ? ` (${a.ano})` : ''}`);
-    if (a.ratingMedio > 0) partes.push(`· avaliação ${a.ratingMedio}/5`);
-    linhas.push(partes.join(' '));
+  const conhecidos = [...new Set(
+    (Array.isArray(jaNaEstante) ? jaNaEstante : [])
+      .flatMap(l => String(l?.autor || '').split(',').map(a => a.trim()))
+      .filter(Boolean)
+  )];
+  if (conhecidos.length > 0) {
+    linhas.push('', `Autores que a pessoa já lê (não sugira estes): ${conhecidos.join(', ')}`);
   }
 
   linhas.push(
     '',
-    `Escolha 2 ou 3 e diga, para cada, o que aproxima de ${referencia} — tema,`,
-    'estilo, época, tipo de narrador. Não é uma lista: é você explicando por que',
-    'a pessoa provavelmente vai gostar. Nunca invente autor fora desta lista;',
-    'se achar que falta alguém óbvio, diga que é palpite seu.',
+    `Indique 2 ou 3 autores que conversam com ${referencia} e diga, para cada, o`,
+    'que aproxima — tema, estilo, época, tipo de narrador. Cite uma obra de',
+    'entrada de cada um. Não é uma lista: é você explicando por que a pessoa',
+    'provavelmente vai gostar.',
+    '',
+    'Indique apenas autores de existência conhecida e obras que você tem certeza',
+    'de que são deles. Na dúvida sobre um título, fale do autor sem citar obra —',
+    'melhor do que arriscar um livro que não existe.',
     '--- FIM ---'
   );
 
