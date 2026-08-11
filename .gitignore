@@ -12,3 +12,9 @@ firebase-debug.log
 # projeto precisa (inclusive GEMINI_API_KEY). Sem esta linha o .env*
 # acima o engoliria num clone novo.
 !.env.example
+
+# Saidas de diagnostico temporarias
+anon.json
+resp.json
+r.json
+big.json
