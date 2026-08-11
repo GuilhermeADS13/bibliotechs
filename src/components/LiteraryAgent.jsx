@@ -14,7 +14,9 @@ import { diaDeHoje, rotularDia } from '../hooks/useConversas';
 const SAUDACAO = {
   id: 1,
   tipo: 'bot',
-  texto: 'Oi! Sou a B.IA 📚 Curioso pra saber o que você anda lendo — e tenho opinião sobre quase tudo, então já aviso. Me pergunta sobre um livro, sobre seu ritmo de leitura, ou pede uma indicação. O que rolou de bom ultimamente?',
+  // "Curiosa", não "Curioso": ela se trata no feminino ("Sou a B.IA"). A regra
+  // de não flexionar vale para o gênero de QUEM PERGUNTA, não para o dela.
+  texto: 'Oi! Sou a B.IA 📚 Curiosa pra saber o que você anda lendo — e tenho opinião sobre quase tudo, então já aviso. Me pergunta sobre um livro, sobre seu ritmo de leitura, ou pede uma indicação. O que rolou de bom ultimamente?',
   timestamp: new Date(),
 };
 
