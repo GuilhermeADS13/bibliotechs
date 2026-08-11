@@ -17,7 +17,7 @@ import { Estatisticas } from './components/Estatisticas';
 import { BiaAvatar } from './components/BiaAvatar';
 import { HistoricoConversas } from './components/HistoricoConversas';
 import { useConversas } from './hooks/useConversas';
-import { ritmoMeta } from './estatisticas';
+import { ritmoMeta, estadoDaEstante } from './estatisticas';
 
 const DA = {
   mustard:'#C49A22', burntOrange:'#C4612A', brickRed:'#9E3D2E', oxblood:'#6B1E2A',
@@ -128,6 +128,11 @@ export default function App() {
   const ultimoLido = lidos.length > 0
     ? [...lidos].filter(l => l.dataTermino).sort((a,b) => new Date(b.dataTermino) - new Date(a.dataTermino))[0]
     : null;
+
+  // Livro a destacar no Início quando ainda não há nenhum concluído. Prioriza o
+  // que está sendo lido; depois a fila; por fim qualquer um — inclusive um
+  // "lido" sem dataTermino, que não entra em `ultimoLido` mas existe.
+  const destaqueSemLeitura = lendoAgora[0] || queroLer[0] || livros[0] || null;
 
   const salvarResenha = (resenha, nota, fotoUsuario) => {
     const dados = { resenha, nota };
@@ -303,12 +308,44 @@ export default function App() {
                   )}
                 </div>
               </div>
-            ) : (
+            ) : estadoDaEstante(livros, ultimoLido) === 'vazia' ? (
               <div style={{ background:GLASS_PANEL_STRONG, borderRadius:'20px', padding:'52px 48px', textAlign:'center', border:'2px dashed rgba(196,154,108,0.5)', boxShadow:PANEL_SHADOW, backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)' }}>
                 <div style={{ fontSize:'52px', marginBottom:'14px' }}>📚</div>
                 <p style={{ color:DA.espresso, fontSize:'17px', fontWeight:'700', marginBottom:'6px' }}>Sua estante está vazia</p>
                 <p style={{ color:DA.espresso, fontSize:'14px', marginBottom:'22px', opacity:0.92 }}>Adicione seu primeiro livro para começar!</p>
                 <button onClick={() => setAba('adicionar')} style={{ ...CTA_BTN }}>➕ Adicionar Primeiro Livro</button>
+              </div>
+            ) : (
+              /* Tem livro, só não tem nenhum concluído. Antes esse caso caía no
+                 card de estante vazia: quem acabava de cadastrar um livro lia
+                 "Sua estante está vazia" logo depois de adicioná-lo. */
+              <div style={{ background:GRAD_HERO, borderRadius:'20px', padding:'36px', display:'flex', alignItems:'center', gap:'36px', flexWrap:'wrap', boxShadow:'0 12px 40px rgba(107,30,42,0.35)', border:`1px solid ${DA.warmBurgundy}` }}>
+                {destaqueSemLeitura && (
+                  <div style={{ position:'relative', flexShrink:0, cursor:'pointer' }}
+                    onClick={() => { const src = destaqueSemLeitura.fotoUsuario || destaqueSemLeitura.capa; if (src) setFotoModal({ src, titulo: destaqueSemLeitura.titulo }); }}>
+                    <img src={destaqueSemLeitura.fotoUsuario || destaqueSemLeitura.capa || bookPlaceholder(130, 185)} alt={destaqueSemLeitura.titulo}
+                      style={{ width:'130px', height:'185px', objectFit:'cover', borderRadius:'10px', boxShadow:'0 8px 24px rgba(131,84,30,0.22)', display:'block' }} />
+                  </div>
+                )}
+                <div style={{ minWidth:0 }}>
+                  <p style={{ color:DA.mustard, fontSize:'11px', fontWeight:'800', textTransform:'uppercase', letterSpacing:'3px', marginBottom:'10px' }}>
+                    {lendoAgora.length > 0 ? '📖 Lendo agora' : '⏳ Na fila'}
+                  </p>
+                  <h2 style={{ fontSize:'28px', fontWeight:'900', color:DA.cream, marginBottom:'6px', lineHeight:1.2 }}>
+                    {destaqueSemLeitura?.titulo}
+                  </h2>
+                  {destaqueSemLeitura?.autor && (
+                    <p style={{ color:DA.warmBeige, fontSize:'15px', marginBottom:'14px', opacity:0.85 }}>{destaqueSemLeitura.autor}</p>
+                  )}
+                  <p style={{ color:DA.warmBeige, fontSize:'14px', maxWidth:'420px', opacity:0.85, lineHeight:1.6 }}>
+                    {livros.length === 1
+                      ? 'Seu primeiro livro está na estante. Quando terminar, marque como lido e dê uma nota — é a partir daí que eu monto seu ritmo e suas recomendações.'
+                      : `Você tem ${livros.length} livros na estante, mas nenhum concluído ainda. Marque um como lido para começar a ver seu ritmo de leitura.`}
+                  </p>
+                  <button onClick={() => setAba('estante')} style={{ ...CTA_BTN, marginTop:'16px' }}>
+                    📚 Ver Minha Estante
+                  </button>
+                </div>
               </div>
             )}
 

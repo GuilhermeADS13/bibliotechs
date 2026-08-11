@@ -150,6 +150,18 @@ export function calcularEstatisticas(livros, ano = new Date().getFullYear()) {
 }
 
 /**
+ * Em qual dos três estados o Início deve aparecer.
+ *
+ * Existe porque os dois primeiros estavam colapsados: quem cadastrava um livro
+ * e voltava ao Início lia "Sua estante está vazia", já que a condição olhava só
+ * para a existência de livro CONCLUÍDO.
+ */
+export function estadoDaEstante(livros, ultimoLido) {
+  if (ultimoLido) return 'com-conclusao';
+  return (Array.isArray(livros) && livros.length > 0) ? 'sem-conclusao' : 'vazia';
+}
+
+/**
  * Ritmo necessário para fechar a meta anual.
  * Responde "quantos preciso ler por mês daqui até dezembro?" — a pergunta que
  * a aba Metas existe para responder, e que o gráfico mensal não respondia.

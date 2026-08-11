@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calcularEstatisticas, resumoMensalTexto, anosDisponiveis, mesDoLivro, anoDoLivro, ritmoMeta } from '../estatisticas';
+import { calcularEstatisticas, resumoMensalTexto, anosDisponiveis, mesDoLivro, anoDoLivro, ritmoMeta, estadoDaEstante } from '../estatisticas';
 
 const acervo = [
   { id: 1, titulo: 'A', status: 'lido', nota: 5, genero: 'Ficção', autor: 'Ana', paginas: 300, dataTermino: '2026-01-15' },
@@ -82,6 +82,34 @@ describe('estatisticas', () => {
   it('avisa quando não há registros no ano', () => {
     const texto = resumoMensalTexto(calcularEstatisticas(acervo, 2020));
     expect(texto).toMatch(/Não há registros de conclusão em 2020/);
+  });
+});
+
+describe('estadoDaEstante', () => {
+  const lido = { id: 1, titulo: 'Dom Casmurro', status: 'lido', dataTermino: '2026-03-10' };
+  const lendo = { id: 2, titulo: 'Coração Satânico', status: 'lendo' };
+
+  it('estante realmente vazia', () => {
+    expect(estadoDaEstante([], null)).toBe('vazia');
+    expect(estadoDaEstante(null, null)).toBe('vazia');
+    expect(estadoDaEstante(undefined, null)).toBe('vazia');
+  });
+
+  // O bug relatado: com um livro em leitura e nenhum concluído, o Início dizia
+  // "Sua estante está vazia" — logo depois de a pessoa cadastrar o livro.
+  it('tem livro mas nenhum concluído — não é vazia', () => {
+    expect(estadoDaEstante([lendo], null)).toBe('sem-conclusao');
+  });
+
+  it('vale para qualquer status sem conclusão', () => {
+    expect(estadoDaEstante([{ status: 'quero-ler' }], null)).toBe('sem-conclusao');
+    expect(estadoDaEstante([{ status: 'abandonei' }], null)).toBe('sem-conclusao');
+    // "lido" sem dataTermino não vira `ultimoLido`, mas o livro existe.
+    expect(estadoDaEstante([{ status: 'lido' }], null)).toBe('sem-conclusao');
+  });
+
+  it('com leitura concluída mostra o destaque', () => {
+    expect(estadoDaEstante([lido, lendo], lido)).toBe('com-conclusao');
   });
 });
 
