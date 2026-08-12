@@ -30,6 +30,19 @@ function pesoPorLivro(livro) {
   return 0.5; // lido sem nota ainda conta como interesse
 }
 
+// Rótulos que o Google Books devolve e que não dizem nada: metade de uma
+// estante real veio marcada como "Fiction". Usados como gênero favorito, levam
+// a `subject:Fiction` — que devolve a literatura inteira, do dicionário à Jane
+// Austen. Ficam de fora do perfil; o gênero que a pessoa digitou vale mais.
+const GENEROS_VAGOS = new Set([
+  'fiction', 'ficcao', 'ficção', 'general', 'geral', 'literature', 'literatura',
+  'literary collections', 'juvenile fiction', 'books', 'livros',
+]);
+
+function generoVago(nome) {
+  return GENEROS_VAGOS.has(normalizar(nome));
+}
+
 function acumular(mapa, chave, peso) {
   if (typeof chave !== 'string' || !chave.trim()) return;
   const nome = chave.trim();
@@ -44,7 +57,7 @@ export function perfilLeitor(livros) {
   for (const l of acervo) {
     const peso = pesoPorLivro(l);
     if (peso === 0) continue;
-    acumular(generos, l.genero, peso);
+    if (!generoVago(l.genero)) acumular(generos, l.genero, peso);
     acumular(autores, l.autor, peso);
   }
 

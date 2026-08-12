@@ -69,12 +69,27 @@ describe('montarContexto', () => {
     it('inclui o que a pessoa escreveu, com o título e a nota', () => {
       const ctx = montarContexto(comResenhas, 2026);
       expect(ctx).toMatch(/O QUE A PESSOA ESCREVEU/);
-      expect(ctx).toMatch(/"Dom Casmurro" \(nota 5\/5\): O Bentinho me irritou/);
+      expect(ctx).toMatch(/"Dom Casmurro"\[lido, nota 5\/5\]: O Bentinho me irritou/);
       expect(ctx).toMatch(/Demorou pra engrenar/);
     });
 
     it('deixa claro que são palavras dela, não da B.IA', () => {
       expect(montarContexto(comResenhas, 2026)).toMatch(/palavras dela, não suas/);
+    });
+
+    // Numa estante real, TODAS as anotações eram de livros abandonados e
+    // explicavam a desistência ("falta de tempo para calhamaço"). Sem o status
+    // junto, isso seria lido como crítica à obra.
+    it('marca o status ao lado da resenha', () => {
+      const ctx = montarContexto([
+        { id: 1, titulo: 'Cem anos de solidão', status: 'abandonei', nota: 0,
+          resenha: 'Falta de tempo para ler esse tipo de narrativa' },
+        { id: 2, titulo: 'Carmilla', status: 'lido', nota: 5, dataTermino: '2026-04-15',
+          resenha: 'Que atmosfera.' },
+      ], 2026);
+
+      expect(ctx).toMatch(/"Cem anos de solidão"\[abandonei\]: Falta de tempo/);
+      expect(ctx).toMatch(/"Carmilla"\[lido, nota 5\/5\]: Que atmosfera/);
     });
 
     it('ignora livros sem resenha e resenha em branco', () => {

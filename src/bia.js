@@ -137,9 +137,13 @@ export function montarContexto(livros, ano = new Date().getFullYear()) {
       const recorte = texto.length > MAX_CHARS_RESENHA
         ? `${texto.slice(0, MAX_CHARS_RESENHA).trimEnd()}… [resenha truncada]`
         : texto;
-      const cabecalho = [`"${l.titulo}"`];
-      if (Number(l.nota) > 0) cabecalho.push(`(nota ${l.nota}/5)`);
-      linhas.push('', `${cabecalho.join(' ')}: ${recorte}`);
+      // O status vai junto porque muda o sentido do texto: numa estante real,
+      // todas as anotações eram de livros ABANDONADOS e explicavam a
+      // desistência ("falta de tempo para calhamaço"). Sem essa marcação, isso
+      // seria lido como crítica à obra, e não é.
+      const cabecalho = [`"${l.titulo}"`, `[${l.status || 'sem status'}`];
+      cabecalho.push(Number(l.nota) > 0 ? `, nota ${l.nota}/5]` : ']');
+      linhas.push('', `${cabecalho.join('')}: ${recorte}`);
     }
   }
 

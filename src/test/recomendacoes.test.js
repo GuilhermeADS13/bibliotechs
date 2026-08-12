@@ -20,6 +20,37 @@ describe('normalizar', () => {
   });
 });
 
+// Numa estante real, 4 dos 6 livros lidos vinham marcados como "Fiction" pelo
+// Google Books. Como gênero favorito, isso vira `subject:Fiction` na busca — e
+// devolve a literatura inteira, do dicionário à Jane Austen.
+describe('perfilLeitor — gêneros vagos', () => {
+  it('ignora "Fiction" e afins no perfil', () => {
+    const p = perfilLeitor([
+      { titulo: 'A', genero: 'Fiction', status: 'lido', nota: 5 },
+      { titulo: 'B', genero: 'Fiction', status: 'lido', nota: 5 },
+      { titulo: 'C', genero: 'Romance Psicológico', status: 'lido', nota: 4 },
+    ]);
+    expect(p.generosFavoritos.map(g => g.nome)).toEqual(['Romance Psicológico']);
+  });
+
+  it('cobre as variações que aparecem na prática', () => {
+    for (const vago of ['Fiction', 'fiction', 'Ficção', 'General', 'Literature', 'Juvenile Fiction']) {
+      const p = perfilLeitor([{ titulo: 'X', genero: vago, status: 'lido', nota: 5 }]);
+      expect(p.generosFavoritos, vago).toEqual([]);
+    }
+  });
+
+  it('não descarta gênero específico que contenha a palavra', () => {
+    const p = perfilLeitor([{ titulo: 'X', genero: 'Ficção Científica', status: 'lido', nota: 5 }]);
+    expect(p.generosFavoritos.map(g => g.nome)).toEqual(['Ficção Científica']);
+  });
+
+  it('o autor continua contando mesmo com gênero vago', () => {
+    const p = perfilLeitor([{ titulo: 'X', autor: 'Sylvia Plath', genero: 'Fiction', status: 'lido', nota: 5 }]);
+    expect(p.autoresFavoritos.map(a => a.nome)).toEqual(['Sylvia Plath']);
+  });
+});
+
 describe('perfilLeitor', () => {
   it('pondera gêneros pela nota dada', () => {
     const p = perfilLeitor(estante);
