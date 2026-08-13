@@ -37,8 +37,30 @@ export async function loginGoogle() {
   }
 }
 
-// Conclui o fluxo de redirect ao recarregar a página (e expõe erros que seriam silenciosos).
-export function completeRedirectLogin() {
-  if (!provider) return;
-  getRedirectResult(auth).catch(e => console.error('Erro ao concluir login por redirect:', e));
+// Conclui o fluxo de redirect ao recarregar a página.
+//
+// Só registrar no console não bastou: o login por redirect ficou quebrado sem
+// ninguém perceber. A causa era de configuração — o `authDomain` apontava para
+// um domínio diferente do app, e desde que os navegadores passaram a bloquear
+// armazenamento de terceiros, a sessão gravada lá não podia ser lida daqui. O
+// usuário voltava do Google e simplesmente não estava logado, sem erro nenhum.
+// Agora o app serve /__/auth pelo próprio domínio (rewrite no vercel.json) e
+// falhas aparecem para quem está usando.
+export async function completeRedirectLogin() {
+  if (!provider) return null;
+  try {
+    // null aqui é o caso normal: a página carregou sem vir de um redirect.
+    return await getRedirectResult(auth);
+  } catch (e) {
+    console.error('Erro ao concluir login por redirect:', e?.code, e?.message);
+
+    const mensagens = {
+      'auth/unauthorized-domain': 'Este endereço não está autorizado no Firebase. Avise o responsável pelo app.',
+      'auth/account-exists-with-different-credential': 'Já existe uma conta com este e-mail usando outro método de login.',
+      'auth/network-request-failed': 'Falha de rede ao concluir o login. Verifique sua conexão e tente de novo.',
+      'auth/web-storage-unsupported': 'Seu navegador está bloqueando o armazenamento necessário para o login. Desative a navegação anônima ou libere cookies para este site.',
+    };
+    alert(mensagens[e?.code] || 'Não foi possível concluir o login. Tente novamente.');
+    return null;
+  }
 }

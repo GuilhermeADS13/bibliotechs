@@ -3,11 +3,17 @@ import React, { useState, useRef, useCallback } from 'react';
 // A foto vai em base64 DENTRO do documento do Firestore, então cada KB aqui é
 // baixado de novo toda vez que a estante carrega — inclusive de livros fora da
 // tela. Numa estante real de 24 livros isso somava 1,27 MB por carregamento.
-// 400px cobre o card (160px de altura) até em tela retina; 0,7 é o ponto em que
-// o JPEG ainda não mostra artefato visível numa foto de capa.
+//
+// Medido recomprimindo a maior foto real do banco (384x600):
+//   600px q82 (antes) -> 89,5 KB em base64
+//   500px q75 (aqui)  -> 45,5 KB
+//   400px q70         -> 26,4 KB, mas a foto também abre em tela cheia no
+//                        FotoModal (até 80vh), e ali 400px fica visivelmente
+//                        macia. 500px é o meio-termo entre peso e nitidez.
+//
 // A correção de fundo é mover as fotos para o Firebase Storage e guardar só a
-// URL — isto aqui reduz o problema, não o resolve.
-const compressImage = (file, maxDim = 400, quality = 0.7) =>
+// URL — isto aqui reduz o problema pela metade, não o resolve.
+const compressImage = (file, maxDim = 500, quality = 0.75) =>
   new Promise((resolve) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
