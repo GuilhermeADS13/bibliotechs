@@ -691,6 +691,19 @@ export function nomesSemMaiuscula(pergunta) {
 }
 
 /**
+ * A pergunta cita algum nome próprio? Não consulta rede — só a extração.
+ *
+ * Serve para o motor de regras saber quando NÃO tem o que responder. Ele tem um
+ * template de "recomendações pelo seu histórico" que dispara com a palavra
+ * "recomende", e que respondia "me recomende um livro de annie ernaux" com uma
+ * lista tirada do perfil da estante, sem citar a autora uma vez sequer. Como
+ * parecia resposta, também escondia que o modelo tinha falhado.
+ */
+export function citaAlgumNome(pergunta) {
+  return nomesCitadosNaPergunta(pergunta).length > 0 || nomesSemMaiuscula(pergunta).length > 0;
+}
+
+/**
  * Descobre se a pergunta fala de um autor que ainda não está na estante e, em
  * caso afirmativo, confirma na Google Books.
  *

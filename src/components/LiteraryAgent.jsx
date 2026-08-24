@@ -5,7 +5,7 @@ import {
   montarContexto, perguntarAoModelo, mensagemDeFalha,
   identificarLivroMencionado, contextoDoLivro, contextoDeRecomendacoes,
   pedeAutorParecido, autorDeReferencia, contextoDeAutores,
-  resolverAutorCitado, contextoDoAutor,
+  resolverAutorCitado, contextoDoAutor, citaAlgumNome,
 } from '../bia';
 import { BiaAvatar } from './BiaAvatar';
 import { diaDeHoje, rotularDia } from '../hooks/useConversas';
@@ -197,12 +197,12 @@ export function LiteraryAgent({
     // O modelo falhou. As regras só assumem se souberem responder de fato; do
     // contrário o usuário via um texto genérico que parecia resposta e se
     // repetia igual, escondendo que algo tinha quebrado.
-    const daRegra = await responderComRegras(pergunta);
+    const daRegra = await responderComRegras(pergunta, autorCitado, erro);
     return daRegra || mensagemDeFalha(erro);
   };
 
   // Motor de regras original — agora o fallback, não o caminho principal.
-  const responderComRegras = async (pergunta) => {
+  const responderComRegras = async (pergunta, autorCitado = null, erroDoModelo = null) => {
     const contexto = prepararContextoEstante();
     const perguntaLower = pergunta.toLowerCase();
     let resposta = '';
@@ -297,6 +297,28 @@ export function LiteraryAgent({
         }
       }
     } 
+    // A pessoa disse de QUEM quer ler. A recomendação pelo perfil da estante
+    // não responde isso — e foi o que ela viu: perguntou por Annie Ernaux e
+    // recebeu "Recomendações Baseadas no Seu Histórico", texto que nem menciona
+    // a autora. Pior: escondeu que o modelo tinha falhado, porque parecia uma
+    // resposta. Aqui os títulos vieram da Google Books e são reais, então dá
+    // para responder de verdade mesmo sem o modelo — dizendo que é o mínimo.
+    else if (autorCitado?.confirmado && autorCitado.obras?.length > 0) {
+      const lista = autorCitado.obras
+        .map(o => `- **${o.titulo}**${o.ano ? ` (${o.ano})` : ''}${o.ratingMedio > 0 ? ` · ${o.ratingMedio}/5` : ''}`)
+        .join('\n');
+      // O motivo da falha vai junto: sem ele a pessoa fica sem saber por que a
+      // resposta veio pela metade — e "não estou logada" tem conserto imediato.
+      resposta = `De **${autorCitado.nome}**, estes são títulos que encontrei agora:\n\n${lista}\n\n`
+        + `Não consegui comentar cada um nem dizer por onde começar. ${mensagemDeFalha(erroDoModelo)}`;
+    }
+    // Nome citado que não deu para confirmar: sem o modelo não há o que dizer.
+    // A checagem é pela pergunta, não pelo que a Google Books confirmou — o
+    // template abaixo dispara com a palavra "recomende" e ignoraria o nome de
+    // qualquer jeito, confirmado ou não.
+    else if (autorCitado || citaAlgumNome(pergunta)) {
+      return null;
+    }
     // Recomendações personalizadas a partir do histórico real
     else if (perguntaLower.includes('recomend') || perguntaLower.includes('próximo')
       || perguntaLower.includes('proximo') || perguntaLower.includes('sugest')

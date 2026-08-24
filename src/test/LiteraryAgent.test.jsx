@@ -154,3 +154,62 @@ describe('LiteraryAgent (B.IA) Integration', () => {
     }, { timeout: 3000 });
   });
 });
+
+// Ela perguntou "me recomende um livro de annie ernaux" e recebeu o template
+// "### 📊 Recomendações Baseadas no Seu Histórico", que nem menciona a autora.
+// Duas falhas de uma vez: a regra respondeu outra pergunta, e ao responder
+// escondeu que o modelo nao tinha respondido — o texto parecia uma resposta.
+//
+// Nestes testes o modelo SEMPRE falha (nao existe /api/bia aqui), que e
+// exatamente o cenario do print.
+describe('fallback quando a pessoa cita um autor', () => {
+  const estanteDeOutroAutor = [
+    { id: 1, titulo: 'Duna', autor: 'Frank Herbert', status: 'lido', nota: 5, genero: 'Ficção' },
+  ];
+
+  it('não responde com o template de histórico quando o autor foi citado', async () => {
+    render(<LiteraryAgent livros={estanteDeOutroAutor} DA={mockDA} GRAD_BTN="" />);
+    fireEvent.click(screen.getByTitle('Abrir B.IA'));
+    perguntar('me recomende um livro de machado de assis');
+
+    await waitFor(() => {
+      expect(screen.queryByText(/Recomendações Baseadas no Seu Histórico/)).not.toBeInTheDocument();
+    }, { timeout: 5000 });
+  });
+
+  it('lista obras reais do autor citado em vez de ignorá-lo', async () => {
+    render(<LiteraryAgent livros={estanteDeOutroAutor} DA={mockDA} GRAD_BTN="" />);
+    fireEvent.click(screen.getByTitle('Abrir B.IA'));
+    perguntar('me recomende um livro de machado de assis');
+
+    // Títulos vindos da Google Books — reais, não inventados pelo template.
+    await waitFor(() => {
+      expect(screen.getByText(/Quincas Borba/)).toBeInTheDocument();
+    }, { timeout: 5000 });
+  });
+
+  it('diz que o modelo falhou em vez de fingir resposta completa', async () => {
+    render(<LiteraryAgent livros={estanteDeOutroAutor} DA={mockDA} GRAD_BTN="" />);
+    fireEvent.click(screen.getByTitle('Abrir B.IA'));
+    perguntar('me recomende um livro de machado de assis');
+
+    // Sem login o modelo nem e chamado. A pessoa precisa saber disso: e o
+    // motivo da resposta vir pela metade, e tem conserto imediato.
+    await waitFor(() => {
+      expect(screen.getByText(/Entre com sua conta Google/)).toBeInTheDocument();
+    }, { timeout: 5000 });
+  });
+
+  it('autor não confirmado não vira template genérico', async () => {
+    // O mock so conhece Machado de Assis; "annie ernaux" nao e confirmado.
+    // Sem confirmacao nao ha o que dizer sem o modelo — melhor admitir.
+    render(<LiteraryAgent livros={estanteDeOutroAutor} DA={mockDA} GRAD_BTN="" />);
+    fireEvent.click(screen.getByTitle('Abrir B.IA'));
+    perguntar('me recomende um livro de annie ernaux');
+
+    await waitFor(() => {
+      expect(screen.getByText(/Entre com sua conta Google/)).toBeInTheDocument();
+    }, { timeout: 5000 });
+    expect(screen.queryByText(/Recomendações Baseadas no Seu Histórico/)).not.toBeInTheDocument();
+  });
+});
