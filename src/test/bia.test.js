@@ -803,3 +803,33 @@ describe('nomesSemMaiuscula com um nome só', () => {
     expect(nomesSemMaiuscula('annie ernaux')).toEqual(['annie ernaux']);
   });
 });
+
+describe('contextoDoAutor: alternativas', () => {
+  const seisObras = Array.from({ length: 6 }, (_, i) => ({
+    titulo: `Obra ${i + 1}`, ano: `200${i}`, ratingMedio: 0,
+  }));
+
+  it('manda escolher uma e oferecer saída para as outras', () => {
+    const ctx = contextoDoAutor({ nome: 'Annie Ernaux', confirmado: true, obras: seisObras });
+    expect(ctx).toMatch(/ESCOLHA UMA e diga por que é ela/);
+    expect(ctx).toMatch(/cite uma ou duas outras/);
+  });
+
+  it('proíbe virar lista — a indicação é o que importa', () => {
+    const ctx = contextoDoAutor({ nome: 'Annie Ernaux', confirmado: true, obras: seisObras });
+    expect(ctx).toMatch(/Não transforme isso em lista/);
+  });
+
+  it('com uma obra só não há alternativa a oferecer', () => {
+    const ctx = contextoDoAutor({
+      nome: 'Fulana', confirmado: true, obras: [{ titulo: 'Única', ano: '2020', ratingMedio: 0 }],
+    });
+    expect(ctx).not.toMatch(/ESCOLHA UMA/);
+  });
+
+  it('sem confirmação não promete alternativa que não existe', () => {
+    const ctx = contextoDoAutor({ nome: 'Fulana', confirmado: false, obras: [] });
+    expect(ctx).not.toMatch(/ESCOLHA UMA/);
+    expect(ctx).toMatch(/--- FIM ---$/);
+  });
+});

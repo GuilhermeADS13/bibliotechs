@@ -790,9 +790,26 @@ export function contextoDoAutor(autor, livros = []) {
     `A pessoa perguntou sobre ${autor.nome}. Fale DESTE autor: do que escreve, como`,
     'é a leitura, por onde começar, e como isso conversa (ou não) com o que ela já',
     'lê. Não desvie para os autores da estante dela como se fossem a pergunta —',
-    'eles servem de comparação, não de resposta.',
-    '--- FIM ---'
+    'eles servem de comparação, não de resposta.'
   );
+
+  // Ela pediu "um livro" e recebeu um só, o que estava certo — mas com seis
+  // obras confirmadas em mãos, deixar as outras de fora desperdiça o que a
+  // busca já custou. Escolher continua sendo o trabalho: uma indicação com
+  // motivo vale mais que uma lista, então a alternativa entra como saída, não
+  // como catálogo.
+  if (autor.confirmado && autor.obras?.length > 1) {
+    linhas.push(
+      '',
+      'ESCOLHA UMA e diga por que é ela — é essa a sua parte do trabalho. Depois,',
+      'em uma frase, cite uma ou duas outras da lista dizendo o que muda em cada',
+      'uma ("se preferir algo mais curto...", "se quiser o lado mais X..."), para',
+      'a pessoa ter para onde ir depois. Não transforme isso em lista nem repita',
+      'a lista inteira: a indicação principal é o que importa.'
+    );
+  }
+
+  linhas.push('--- FIM ---');
 
   return linhas.join('\n');
 }
