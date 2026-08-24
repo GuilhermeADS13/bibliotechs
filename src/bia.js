@@ -565,6 +565,14 @@ const NAO_E_NOME = new Set([
   'nao', 'sim', 'talvez', 'muito', 'mais', 'menos', 'algum', 'alguma', 'algo',
   'indica', 'indique', 'recomenda', 'recomende', 'fala', 'diga', 'conta',
   'parecido', 'parecida', 'parecidos', 'parecidas', 'semelhante', 'similar',
+  // Vocabulario que sobra das perguntas do dia a dia. Sem isto, "qual meu
+  // genero favorito mesmo" deixa "favorito mesmo" de resto e gasta uma busca
+  // na Google Books para descobrir que nao e ninguem.
+  'mesmo', 'mesma', 'favorito', 'favorita', 'melhor', 'melhores', 'pior',
+  'otimo', 'ruim', 'legal', 'novo', 'nova', 'velho', 'ultimo', 'ultima',
+  'primeiro', 'primeira', 'proximo', 'proxima', 'outro', 'outra', 'outros',
+  'ano', 'anos', 'mes', 'meses', 'dia', 'dias', 'semana', 'semanas',
+  'pagina', 'paginas', 'nota', 'notas', 'media', 'total', 'meta', 'metas',
 ]);
 
 // Ligações que aparecem dentro de nomes ("Machado de Assis", "Ursula K. Le Guin").
@@ -662,11 +670,20 @@ export function nomesSemMaiuscula(pergunta) {
   }
   if (atual.length) corridas.push(atual);
 
+  // Uma palavra só normalmente é ambígua demais — mas não quando a mensagem
+  // INTEIRA é ela. Quem digita "ernaux" está pesquisando um nome, não fazendo
+  // uma pergunta, e a Google Books resolve sobrenome sozinho sem hesitar
+  // (ernaux -> Annie Ernaux, saramago -> José Saramago). Numa frase longa a
+  // palavra solta volta a ser ruído ("mes", em "quantos livros li por mes").
+  const buscaCurta = tokens.length <= 3;
+
   const nomes = [];
   for (const corrida of corridas) {
     const palavras = [...corrida];
     while (palavras.length && LIGACOES.has(soLetras(palavras[palavras.length - 1]))) palavras.pop();
-    if (palavras.length < 2 || palavras.length > 4) continue;
+    if (palavras.length > 4) continue;
+    if (palavras.length === 1 && !(buscaCurta && soLetras(palavras[0]).length >= 4)) continue;
+    if (palavras.length === 0) continue;
     nomes.push(palavras.join(' '));
   }
 

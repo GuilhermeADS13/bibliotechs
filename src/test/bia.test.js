@@ -777,3 +777,29 @@ describe('resolverAutorCitado sem maiúscula', () => {
     expect(r.nome).toBe('Elena Ferrante');
   });
 });
+
+describe('nomesSemMaiuscula com um nome só', () => {
+  // A Google Books resolve sobrenome sozinho sem hesitar — verificado ao vivo:
+  // ernaux -> Annie Ernaux, saramago -> José Saramago, rooney -> Sally Rooney.
+  // Descartar palavra única fechava a porta para a forma mais curta de
+  // pesquisar um autor, que é digitar só o sobrenome.
+  it('aceita sobrenome sozinho quando a mensagem é só isso', () => {
+    expect(nomesSemMaiuscula('ernaux')).toEqual(['ernaux']);
+    expect(nomesSemMaiuscula('saramago')).toEqual(['saramago']);
+  });
+
+  it('não aceita palavra solta no meio de uma frase', () => {
+    // Aqui "mes" e "favorito" sobram da limpeza e não são nome de ninguém.
+    expect(nomesSemMaiuscula('quantos livros eu li por mes')).toEqual([]);
+    expect(nomesSemMaiuscula('qual meu genero favorito mesmo')).toEqual([]);
+  });
+
+  it('exige pelo menos quatro letras — sigla e abreviação não valem', () => {
+    expect(nomesSemMaiuscula('bia')).toEqual([]);
+    expect(nomesSemMaiuscula('oi')).toEqual([]);
+  });
+
+  it('a busca curta continua preferindo o nome composto', () => {
+    expect(nomesSemMaiuscula('annie ernaux')).toEqual(['annie ernaux']);
+  });
+});
