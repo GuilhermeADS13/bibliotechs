@@ -9,7 +9,7 @@ import {
   montarContexto, perguntarAoModelo, prepararHistorico, mensagemDeFalha,
   identificarLivroMencionado, contextoDoLivro,
   pedeAutorParecido, autorDeReferencia, contextoDeAutores,
-  nomesCitadosNaPergunta, resolverAutorCitado, contextoDoAutor,
+  nomesCitadosNaPergunta, nomesSemMaiuscula, resolverAutorCitado, contextoDoAutor,
 } from '../bia';
 
 const acervo = [
@@ -721,5 +721,59 @@ describe('contextoDoAutor', () => {
 
   it('devolve vazio sem autor', () => {
     expect(contextoDoAutor(null)).toBe('');
+  });
+});
+
+// Segundo relato da mesma leitora: ela escreveu "annie ernaux", tudo em
+// minúscula, e a B.IA de novo não entendeu. A correção anterior só enxergava
+// nome próprio com inicial maiúscula — o que é exigir que ela escreva do jeito
+// do código. Quem conversa no celular escreve assim o tempo todo.
+describe('nomesSemMaiuscula', () => {
+  it('acha o nome que a leitora digitou em minúscula', () => {
+    expect(nomesSemMaiuscula('annie ernaux')).toContain('annie ernaux');
+    expect(nomesSemMaiuscula('me recomenda livros da annie ernaux')).toContain('annie ernaux');
+    expect(nomesSemMaiuscula('quero ler annie ernaux')).toContain('annie ernaux');
+  });
+
+  it('não pega palavra solta — ambígua demais sem maiúscula', () => {
+    // "mes" sobraria de "quantos livros li por mes"; uma palavra só não é
+    // evidência de nada, e cada palpite custa uma busca na Google Books.
+    for (const p of [
+      'quantos livros eu li por mes',
+      'qual meu genero favorito',
+      'me indica um livro bom',
+    ]) {
+      expect(nomesSemMaiuscula(p), p).toEqual([]);
+    }
+  });
+
+  it('corta na pontuação em vez de juntar duas frases', () => {
+    expect(nomesSemMaiuscula('adorei o livro, annie ernaux escreve bem'))
+      .not.toContain('livro annie ernaux');
+  });
+});
+
+describe('resolverAutorCitado sem maiúscula', () => {
+  const estante = [{ id: 1, titulo: 'Dom Casmurro', autor: 'Machado de Assis', status: 'lido', nota: 5 }];
+
+  it('resolve o nome em minúscula quando a API confirma', async () => {
+    // O mock do setup confirma Machado de Assis; o nome vem sem maiúscula e
+    // sem estar na estante para forçar o caminho novo.
+    const r = await resolverAutorCitado('me recomenda livros de machado de assis', [], {});
+    expect(r.nome).toBe('Machado de Assis');
+    expect(r.confirmado).toBe(true);
+  });
+
+  // Aqui está a diferença de rigor entre os dois caminhos: com maiúscula, um
+  // nome não confirmado ainda vale (o modelo pode conhecer). Sem maiúscula,
+  // "realismo magico" tem a mesma cara de "annie ernaux" — só a confirmação
+  // separa os dois, e sem ela nada vira contexto.
+  it('descarta palpite em minúscula que a API não confirma', async () => {
+    expect(await resolverAutorCitado('me fala do realismo magico', estante, {})).toBeNull();
+  });
+
+  it('a maiúscula continua tendo precedência sobre o palpite em minúscula', async () => {
+    const r = await resolverAutorCitado('quero ler Elena Ferrante e outros nomes', estante, {});
+    expect(r.nome).toBe('Elena Ferrante');
   });
 });

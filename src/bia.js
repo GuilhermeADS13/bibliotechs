@@ -630,12 +630,58 @@ export function nomesCitadosNaPergunta(pergunta) {
 }
 
 /**
+ * Candidatos a nome quando a pessoa escreveu tudo em minúscula.
+ *
+ * Foi o segundo relato: ela digitou "annie ernaux" e a busca por maiúscula não
+ * viu nada. Quem conversa no celular escreve assim o tempo todo, e exigir
+ * maiúscula em nome próprio é exigir que a pessoa escreva do jeito do código.
+ *
+ * Aqui a evidência é mais fraca — sem maiúscula, "realismo magico" tem a mesma
+ * cara de "annie ernaux". Duas travas compensam: só corridas de 2 a 4 palavras
+ * (uma palavra solta é ambígua demais) e, em `resolverAutorCitado`, só vale se
+ * a Google Books confirmar. Palpite sem maiúscula não vira contexto por conta.
+ */
+export function nomesSemMaiuscula(pergunta) {
+  const tokens = String(pergunta || '')
+    .split(/[\s,;:!?]+/)
+    .map(t => t.replace(/^[¿¡"'“‘(\[]+/, '').replace(/["'”’)\]]+$/, ''))
+    .filter(Boolean);
+
+  const corridas = [];
+  let atual = [];
+  for (const token of tokens) {
+    const chave = soLetras(token);
+    // Ligação só continua um nome já começado; sozinha não abre um.
+    const ehLigacao = LIGACOES.has(chave) && atual.length > 0;
+    if (chave.length >= 2 && (ehLigacao || !NAO_E_NOME.has(chave))) {
+      atual.push(token);
+      continue;
+    }
+    if (atual.length) corridas.push(atual);
+    atual = [];
+  }
+  if (atual.length) corridas.push(atual);
+
+  const nomes = [];
+  for (const corrida of corridas) {
+    const palavras = [...corrida];
+    while (palavras.length && LIGACOES.has(soLetras(palavras[palavras.length - 1]))) palavras.pop();
+    if (palavras.length < 2 || palavras.length > 4) continue;
+    nomes.push(palavras.join(' '));
+  }
+
+  return [...new Set(nomes)].sort((a, b) => b.split(' ').length - a.split(' ').length);
+}
+
+/**
  * Descobre se a pergunta fala de um autor que ainda não está na estante e, em
  * caso afirmativo, confirma na Google Books.
  *
- * Devolve { nome, obras, confirmado } quando há do que falar, ou null. O nome
- * volta mesmo sem confirmação: se a API não achou, o modelo ainda pode conhecer
- * — pior que responder de memória é responder sobre outra pessoa.
+ * Devolve { nome, obras, confirmado } quando há do que falar, ou null.
+ *
+ * Com maiúscula, o nome volta mesmo sem confirmação: a API pode não ter achado
+ * quem o modelo conhece, e responder sobre outra pessoa é pior. Sem maiúscula
+ * não — ali a única evidência de que aquilo é um nome é a própria confirmação.
  */
 export async function resolverAutorCitado(pergunta, livros, { googleBooksKey = '', sinal } = {}) {
   const acervo = Array.isArray(livros) ? livros : [];
@@ -647,10 +693,15 @@ export async function resolverAutorCitado(pergunta, livros, { googleBooksKey = '
     ...acervo.flatMap(l => String(l?.autor || '').split(',').map(a => normalizarTexto(a))),
   ].filter(c => c.length >= 3);
 
-  const candidatos = nomesCitadosNaPergunta(pergunta).filter(n => {
+  const novo = (n) => {
     const alvo = normalizarTexto(n);
     return !conhecidos.some(c => c.includes(alvo) || alvo.includes(c));
-  });
+  };
+
+  const comMaiuscula = nomesCitadosNaPergunta(pergunta).filter(novo);
+  // O caminho de minúscula só entra quando o outro não achou nada: "annie
+  // ernaux" precisa dele, mas ele erra mais, e maiúscula é evidência melhor.
+  const candidatos = comMaiuscula.length > 0 ? comMaiuscula : nomesSemMaiuscula(pergunta).filter(novo);
   if (candidatos.length === 0) return null;
 
   // Uma confirmação basta, e as tentativas são poucas: a cota da Google Books é
@@ -660,7 +711,7 @@ export async function resolverAutorCitado(pergunta, livros, { googleBooksKey = '
     if (achado) return { ...achado, confirmado: true };
   }
 
-  return { nome: candidatos[0], obras: [], confirmado: false };
+  return comMaiuscula.length > 0 ? { nome: candidatos[0], obras: [], confirmado: false } : null;
 }
 
 /** Seção de contexto sobre o autor que a pessoa citou e ainda não lê. */

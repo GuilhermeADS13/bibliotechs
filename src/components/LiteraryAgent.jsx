@@ -174,7 +174,11 @@ export function LiteraryAgent({
     }
     // Candidatos vindos da Google Books, filtrados pelo perfil de leitura. O
     // modelo escolhe e justifica; a busca continua sendo feita em código.
-    else if (querRecomendacao) {
+    //
+    // Não entra quando a pessoa já disse de QUEM quer ler: "me recomenda livros
+    // da annie ernaux" não é um pedido de sugestão pelo perfil dela, e juntar as
+    // duas listas só dá ao modelo material para responder outra coisa.
+    else if (querRecomendacao && !autorCitado?.confirmado) {
       const { recomendacoes, perfil } = await gerarRecomendacoes(livros, {
         googleBooksKey,
         limite: 6,
