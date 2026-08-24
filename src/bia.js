@@ -6,7 +6,7 @@
 // pronto e só precisa escrever a resposta.
 
 import { calcularEstatisticas, MESES_LONGOS } from './estatisticas';
-import { perfilLeitor } from './recomendacoes';
+import { perfilLeitor, buscarAutor } from './recomendacoes';
 
 // `normalizarTexto` é declarado mais abaixo (function declaration, içada).
 
@@ -537,6 +537,183 @@ export function mensagemDeFalha(erro) {
     default:
       return 'Não consegui processar sua pergunta agora. Tente novamente em instantes.';
   }
+}
+
+// --- AUTOR CITADO QUE NÃO ESTÁ NA ESTANTE ---------------------------------
+//
+// O buraco que isto tapa: `autorDeReferencia` só procura entre os autores JÁ
+// cadastrados. Quem perguntasse por alguém que ainda não lê ("quero ler a
+// fulana", "tem livro da sicrana?") tinha o nome ignorado — o código caía no
+// autor favorito da própria estante e a B.IA respondia sobre outra pessoa, ou
+// pedia que a leitora dissesse de quem estava falando, logo depois de ela ter
+// dito. Nos dois casos a leitura de quem usa é a mesma: "ela não entendeu".
+
+// Palavras que aparecem em maiúscula por começarem a frase, não por serem nome.
+const NAO_E_NOME = new Set([
+  'a', 'o', 'as', 'os', 'um', 'uma', 'uns', 'umas', 'e', 'ou', 'mas',
+  'oi', 'ola', 'bom', 'boa', 'ei', 'entao', 'agora', 'hoje', 'ainda', 'ja',
+  'que', 'qual', 'quais', 'quem', 'quando', 'onde', 'como', 'porque', 'por',
+  'quanto', 'quantos', 'quanta', 'quantas',
+  'quero', 'queria', 'gostaria', 'pode', 'poderia', 'preciso', 'consigo',
+  'me', 'te', 'voce', 'vc', 'eu', 'tu', 'ele', 'ela', 'nos', 'seu', 'sua',
+  'meu', 'minha', 'esse', 'essa', 'este', 'esta', 'aquele', 'aquela', 'isso',
+  'tem', 'ter', 'temos', 'ha', 'existe', 'sabe', 'conhece', 'acha', 'acho',
+  'ler', 'leio', 'lendo', 'li', 'lido', 'leitura', 'leituras',
+  'livro', 'livros', 'obra', 'obras', 'autor', 'autora', 'autores', 'autoras',
+  'escritor', 'escritora', 'escritores', 'escritoras', 'estante', 'genero',
+  'sobre', 'com', 'sem', 'para', 'pra', 'de', 'da', 'do', 'das', 'dos', 'em',
+  'nao', 'sim', 'talvez', 'muito', 'mais', 'menos', 'algum', 'alguma', 'algo',
+  'indica', 'indique', 'recomenda', 'recomende', 'fala', 'diga', 'conta',
+  'parecido', 'parecida', 'parecidos', 'parecidas', 'semelhante', 'similar',
+]);
+
+// Ligações que aparecem dentro de nomes ("Machado de Assis", "Ursula K. Le Guin").
+// O "e" fica de fora de propósito: em português ele separa uma lista de nomes
+// muito mais vezes do que compõe um — mantê-lo grudava "Machado de Assis e
+// Ursula K. Le Guin" num nome só, longo demais, e os dois se perdiam.
+const LIGACOES = new Set([
+  'de', 'da', 'do', 'das', 'dos', 'von', 'van', 'del', 'della', 'la', 'le', 'du', 'di',
+]);
+
+const soLetras = (t) => normalizarTexto(t).replace(/[^\p{L}\p{N}]/gu, '');
+
+function comecaMaiuscula(token) {
+  const letra = token.replace(/[^\p{L}]/gu, '')[0];
+  return !!letra && letra === letra.toUpperCase() && letra !== letra.toLowerCase();
+}
+
+/**
+ * Nomes próprios citados na pergunta, dos mais longos aos mais curtos.
+ *
+ * Não decide se é autor — só levanta candidatos. Quem confirma é a Google
+ * Books, e é essa confirmação que torna seguro extrair por heurística: um
+ * palpite errado ("Esse Ano") simplesmente não bate com autor nenhum.
+ */
+export function nomesCitadosNaPergunta(pergunta) {
+  const tokens = String(pergunta || '').split(/\s+/).filter(Boolean);
+
+  const corridas = [];
+  let atual = [];
+  for (const bruto of tokens) {
+    // Pontuação final encerra o nome; o ponto de inicial ("C.") não.
+    const limpo = bruto
+      .replace(/^[¿¡"'“‘(\[]+/, '')
+      .replace(/[,;:!?"'”’)\]]+$/, '');
+    const corta = /[,;:!?]$/.test(bruto);
+    const chave = soLetras(limpo);
+
+    const ehLigacao = LIGACOES.has(chave) && atual.length > 0;
+    if (limpo && (comecaMaiuscula(limpo) || ehLigacao)) {
+      atual.push(limpo);
+      if (!corta) continue;
+    }
+    if (atual.length) corridas.push(atual);
+    atual = [];
+  }
+  if (atual.length) corridas.push(atual);
+
+  const nomes = [];
+  for (const corrida of corridas) {
+    // Tira do começo o que só está em maiúscula por abrir a frase, e do fim a
+    // ligação solta ("Colleen Hoover e" -> "Colleen Hoover").
+    const palavras = [...corrida];
+    while (palavras.length && NAO_E_NOME.has(soLetras(palavras[0]))) palavras.shift();
+    while (palavras.length && LIGACOES.has(soLetras(palavras[palavras.length - 1]))) palavras.pop();
+    if (palavras.length === 0 || palavras.length > 4) continue;
+    if (!palavras.some(p => soLetras(p).length >= 3)) continue;
+    nomes.push(palavras.join(' '));
+  }
+
+  // Nome composto antes de nome solto: "Colleen Hoover" é uma aposta melhor que
+  // "Colleen", e a primeira confirmação encerra a busca.
+  return [...new Set(nomes)].sort((a, b) => b.split(' ').length - a.split(' ').length);
+}
+
+/**
+ * Descobre se a pergunta fala de um autor que ainda não está na estante e, em
+ * caso afirmativo, confirma na Google Books.
+ *
+ * Devolve { nome, obras, confirmado } quando há do que falar, ou null. O nome
+ * volta mesmo sem confirmação: se a API não achou, o modelo ainda pode conhecer
+ * — pior que responder de memória é responder sobre outra pessoa.
+ */
+export async function resolverAutorCitado(pergunta, livros, { googleBooksKey = '', sinal } = {}) {
+  const acervo = Array.isArray(livros) ? livros : [];
+
+  // Nomes que já estão na estante seguem pelo caminho antigo, que traz junto os
+  // dados de leitura. Aqui só interessa o que é novo.
+  const conhecidos = [
+    ...acervo.map(l => normalizarTexto(l?.titulo)),
+    ...acervo.flatMap(l => String(l?.autor || '').split(',').map(a => normalizarTexto(a))),
+  ].filter(c => c.length >= 3);
+
+  const candidatos = nomesCitadosNaPergunta(pergunta).filter(n => {
+    const alvo = normalizarTexto(n);
+    return !conhecidos.some(c => c.includes(alvo) || alvo.includes(c));
+  });
+  if (candidatos.length === 0) return null;
+
+  // Uma confirmação basta, e as tentativas são poucas: a cota da Google Books é
+  // limitada e a pergunta não pode esperar três buscas em série.
+  for (const nome of candidatos.slice(0, 2)) {
+    const achado = await buscarAutor(nome, { googleBooksKey, sinal });
+    if (achado) return { ...achado, confirmado: true };
+  }
+
+  return { nome: candidatos[0], obras: [], confirmado: false };
+}
+
+/** Seção de contexto sobre o autor que a pessoa citou e ainda não lê. */
+export function contextoDoAutor(autor, livros = []) {
+  if (!autor?.nome) return '';
+
+  const linhas = ['', '--- AUTOR CITADO PELA PESSOA ---', `Nome: ${autor.nome}`];
+
+  const naEstante = (Array.isArray(livros) ? livros : []).filter(
+    l => normalizarTexto(l?.autor || '').includes(normalizarTexto(autor.nome))
+  );
+  linhas.push(
+    naEstante.length > 0
+      ? `Já na estante dela: ${naEstante.map(l => `"${l.titulo}" [${l.status || 'sem status'}]`).join(', ')}`
+      : 'Ela ainda não tem nenhum livro deste autor na estante.'
+  );
+
+  if (autor.confirmado && autor.obras?.length > 0) {
+    linhas.push('', 'Obras confirmadas agora na Google Books (títulos reais — pode citar):');
+    for (const o of autor.obras) {
+      const partes = [`- "${o.titulo}"`];
+      if (o.ano) partes.push(`(${o.ano})`);
+      if (o.ratingMedio > 0) partes.push(`avaliação ${o.ratingMedio}/5`);
+      linhas.push(partes.join(' '));
+    }
+    // A busca por autor ordena por relevância comercial, não por importância —
+    // para Frank Herbert ela devolveu coletâneas e nenhum "Duna".
+    linhas.push(
+      '',
+      'Esta lista NÃO está em ordem de importância: é o que a busca devolveu. Não',
+      'a apresente como "as principais obras". Se você conhece a obra de entrada',
+      'do autor e ela não está aqui, pode citá-la mesmo assim.'
+    );
+  } else if (!autor.confirmado) {
+    linhas.push(
+      '',
+      'A Google Books não confirmou este nome. Pode ser grafia diferente, ou o',
+      'trecho pode nem ser um nome. Se você conhece o autor, responda normalmente.',
+      'Se não conhece, diga isso e peça para ela confirmar como se escreve — nunca',
+      'invente obra nem finja que não entendeu a pergunta.'
+    );
+  }
+
+  linhas.push(
+    '',
+    `A pessoa perguntou sobre ${autor.nome}. Fale DESTE autor: do que escreve, como`,
+    'é a leitura, por onde começar, e como isso conversa (ou não) com o que ela já',
+    'lê. Não desvie para os autores da estante dela como se fossem a pergunta —',
+    'eles servem de comparação, não de resposta.',
+    '--- FIM ---'
+  );
+
+  return linhas.join('\n');
 }
 
 export { MESES_LONGOS };

@@ -5,6 +5,7 @@ import {
   montarContexto, perguntarAoModelo, mensagemDeFalha,
   identificarLivroMencionado, contextoDoLivro, contextoDeRecomendacoes,
   pedeAutorParecido, autorDeReferencia, contextoDeAutores,
+  resolverAutorCitado, contextoDoAutor,
 } from '../bia';
 import { BiaAvatar } from './BiaAvatar';
 import { diaDeHoje, rotularDia } from '../hooks/useConversas';
@@ -148,17 +149,28 @@ export function LiteraryAgent({
 
     // Dados reais do livro citado: sem isso o modelo responderia de memória e
     // poderia errar editora, ano ou número de páginas.
+    //
+    // A busca do autor citado corre JUNTO, não depois: são duas idas à Google
+    // Books e a pessoa está esperando a resposta — em série, a espera dobrava.
     const livroCitado = identificarLivroMencionado(pergunta, livros, mensagens);
-    if (livroCitado) {
-      const info = await buscarLivroNaInternet(livroCitado.titulo, livroCitado.autor || '');
-      if (info) contexto += contextoDoLivro(info, livroCitado);
-    }
+    const [info, autorCitado] = await Promise.all([
+      livroCitado ? buscarLivroNaInternet(livroCitado.titulo, livroCitado.autor || '') : null,
+      // A pessoa pode citar uma autora que ela ainda NÃO tem na estante — foi
+      // exatamente o que quebrou: o código só reconhecia autores cadastrados,
+      // ignorava o nome perguntado e respondia sobre outro.
+      resolverAutorCitado(pergunta, livros, { googleBooksKey }),
+    ]);
+
+    if (info) contexto += contextoDoLivro(info, livroCitado);
+    if (autorCitado) contexto += contextoDoAutor(autorCitado, livros);
 
     // "Me indica um autor parecido com o X". Sem consultar a Google Books: a
     // API não sabe responder isso (detalhes em contextoDeAutores). O que o
-    // código faz é descobrir de qual autor partir, usando a estante.
+    // código faz é descobrir de qual autor partir — o citado na pergunta tem
+    // precedência sobre qualquer palpite tirado da estante.
     if (pedeAutorParecido(pergunta)) {
-      contexto += contextoDeAutores(autorDeReferencia(pergunta, livros, mensagens), livros);
+      const referencia = autorCitado?.nome || autorDeReferencia(pergunta, livros, mensagens);
+      contexto += contextoDeAutores(referencia, livros);
     }
     // Candidatos vindos da Google Books, filtrados pelo perfil de leitura. O
     // modelo escolhe e justifica; a busca continua sendo feita em código.

@@ -9,6 +9,7 @@ import {
   montarContexto, perguntarAoModelo, prepararHistorico, mensagemDeFalha,
   identificarLivroMencionado, contextoDoLivro,
   pedeAutorParecido, autorDeReferencia, contextoDeAutores,
+  nomesCitadosNaPergunta, resolverAutorCitado, contextoDoAutor,
 } from '../bia';
 
 const acervo = [
@@ -598,5 +599,127 @@ describe('mensagemDeFalha', () => {
     for (const e of ['cota-esgotada', 'timeout', 'sem-conexao', 'sem-chave', 'outro']) {
       expect(mensagemDeFalha(e)).not.toMatch(/requer análise cuidadosa|padrões de consumo/);
     }
+  });
+});
+
+// Defeito relatado por quem usa: ela pesquisou uma autora que NÃO está na
+// estante nem nas recomendações — alguém que gostaria de ler — e a B.IA
+// respondeu como se não tivesse entendido. A causa era estrutural: o único
+// caminho que enxergava autor (`autorDeReferencia`) procura apenas entre os
+// autores JÁ cadastrados, então o nome perguntado era descartado em silêncio.
+describe('nomesCitadosNaPergunta', () => {
+  it('acha a autora citada nas formas em que se pergunta de verdade', () => {
+    const casos = [
+      ['quero ler Colleen Hoover, o que voce acha?', 'Colleen Hoover'],
+      ['tem algum livro da Agatha Christie?', 'Agatha Christie'],
+      ['me fala sobre a Jane Austen', 'Jane Austen'],
+      ['me indica autores parecidos com Sally Rooney', 'Sally Rooney'],
+      ['Voce conhece a autora Elena Ferrante?', 'Elena Ferrante'],
+    ];
+    for (const [pergunta, nome] of casos) {
+      expect(nomesCitadosNaPergunta(pergunta), pergunta).toContain(nome);
+    }
+  });
+
+  it('não confunde maiúscula de início de frase com nome próprio', () => {
+    for (const p of [
+      'Quantos livros eu li por mes?',
+      'Quero ler mais esse ano',
+      'Me recomende um livro',
+      'Qual meu genero favorito?',
+    ]) {
+      expect(nomesCitadosNaPergunta(p), p).toEqual([]);
+    }
+  });
+
+  it('separa uma lista de nomes em vez de grudar tudo num só', () => {
+    expect(nomesCitadosNaPergunta('quero ler Machado de Assis e Ursula K. Le Guin'))
+      .toEqual(expect.arrayContaining(['Machado de Assis', 'Ursula K. Le Guin']));
+  });
+
+  it('põe o nome composto antes do solto — é a aposta melhor', () => {
+    const nomes = nomesCitadosNaPergunta('gostei de Clarice Lispector e de Saramago');
+    expect(nomes[0]).toBe('Clarice Lispector');
+  });
+});
+
+describe('resolverAutorCitado', () => {
+  const estante = [
+    { id: 1, titulo: 'Dom Casmurro', autor: 'Machado de Assis', status: 'lido', nota: 5 },
+  ];
+
+  // Este é o teste que trava o defeito. Antes, a única resposta possível era a
+  // da primeira linha — a autora perguntada sumia e sobrava um palpite tirado
+  // da estante, que é o que fazia a B.IA parecer não ter entendido.
+  it('a autora citada tem precedência sobre o palpite da estante', async () => {
+    expect(autorDeReferencia('autores parecidos com Colleen Hoover', estante))
+      .toBe('Machado de Assis');
+
+    const citado = await resolverAutorCitado('autores parecidos com Colleen Hoover', estante, {});
+    expect(citado.nome).toBe('Colleen Hoover');
+  });
+
+  it('não gasta busca com autor que já está na estante', async () => {
+    const espiao = vi.spyOn(globalThis, 'fetch');
+    const r = await resolverAutorCitado('me fala de Machado de Assis', estante, {});
+    expect(r).toBeNull();
+    expect(espiao).not.toHaveBeenCalled();
+    espiao.mockRestore();
+  });
+
+  it('não dispara quando a pergunta não cita nome nenhum', async () => {
+    expect(await resolverAutorCitado('quantos livros eu li?', estante, {})).toBeNull();
+  });
+
+  it('devolve o nome mesmo sem confirmação da API', async () => {
+    // O mock do setup só reconhece Machado de Assis; qualquer outro nome volta
+    // sem confirmação. Devolver o nome assim mesmo é deliberado: o modelo pode
+    // conhecer a autora, e responder sobre outra pessoa é pior que arriscar.
+    const r = await resolverAutorCitado('quero ler Elena Ferrante', estante, {});
+    expect(r.nome).toBe('Elena Ferrante');
+    expect(r.confirmado).toBe(false);
+  });
+});
+
+describe('contextoDoAutor', () => {
+  it('nomeia o autor perguntado e proíbe desviar para a estante', () => {
+    const ctx = contextoDoAutor({ nome: 'Sally Rooney', obras: [], confirmado: false }, []);
+    expect(ctx).toMatch(/Nome: Sally Rooney/);
+    expect(ctx).toMatch(/Fale DESTE autor/);
+    expect(ctx).toMatch(/Não desvie para os autores da estante/);
+  });
+
+  it('avisa que ela ainda não tem esse autor', () => {
+    const ctx = contextoDoAutor({ nome: 'Sally Rooney', obras: [], confirmado: false }, [
+      { titulo: 'Dom Casmurro', autor: 'Machado de Assis', status: 'lido' },
+    ]);
+    expect(ctx).toMatch(/ainda não tem nenhum livro deste autor/);
+  });
+
+  it('lista as obras confirmadas sem chamá-las de principais', () => {
+    const ctx = contextoDoAutor({
+      nome: 'Colleen Hoover',
+      confirmado: true,
+      obras: [
+        { titulo: 'É assim que acaba', ano: '2018', ratingMedio: 4.5 },
+        { titulo: 'Novembro, 9', ano: '2016', ratingMedio: 0 },
+      ],
+    }, []);
+    expect(ctx).toMatch(/"É assim que acaba" \(2018\) avaliação 4\.5\/5/);
+    expect(ctx).toMatch(/"Novembro, 9" \(2016\)/);
+    expect(ctx).toMatch(/NÃO está em ordem de importância/);
+  });
+
+  // Sem confirmação, o pior desfecho seria justamente o que a cliente viu: a
+  // B.IA fingindo que a pergunta era ininteligível.
+  it('sem confirmação, manda perguntar a grafia — nunca fingir que não entendeu', () => {
+    const ctx = contextoDoAutor({ nome: 'Fulana de Tal', obras: [], confirmado: false }, []);
+    expect(ctx).toMatch(/confirmar como se escreve/);
+    expect(ctx).toMatch(/nunca/i);
+    expect(ctx).toMatch(/finja que não entendeu/);
+  });
+
+  it('devolve vazio sem autor', () => {
+    expect(contextoDoAutor(null)).toBe('');
   });
 });

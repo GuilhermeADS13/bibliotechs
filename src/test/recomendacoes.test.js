@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { perfilLeitor, gerarRecomendacoes, normalizar } from '../recomendacoes';
+import { perfilLeitor, gerarRecomendacoes, normalizar, buscarAutor } from '../recomendacoes';
 
 const estante = [
   { titulo: 'Dom Casmurro', autor: 'Machado de Assis', genero: 'Clássico', status: 'lido', nota: 5 },
@@ -123,5 +123,40 @@ describe('gerarRecomendacoes', () => {
     const r = await gerarRecomendacoes(estante, { limite: 6 });
     const comCapa = r.recomendacoes.find(x => x.capa);
     expect(comCapa.capa.startsWith('https://')).toBe(true);
+  });
+});
+
+describe('buscarAutor', () => {
+  it('confirma o autor e devolve obras reais', async () => {
+    const r = await buscarAutor('Machado de Assis');
+    expect(r.nome).toBe('Machado de Assis');
+    expect(r.obras.map(o => o.titulo)).toContain('Quincas Borba');
+  });
+
+  // `inauthor:` é generoso e devolve qualquer coisa relacionada. Sem esta
+  // guarda, um trecho de frase capturado por engano ("Esse Ano") viraria um
+  // "autor confirmado" — e a B.IA falaria com convicção sobre quem não existe.
+  it('recusa quando o nome não bate com o autor dos volumes', async () => {
+    expect(await buscarAutor('Colleen Hoover')).toBeNull();
+  });
+
+  it('ignora nome curto demais sem consultar a API', async () => {
+    expect(await buscarAutor('a')).toBeNull();
+    expect(await buscarAutor('')).toBeNull();
+  });
+
+  it('descarta títulos que só repetem o nome do autor', async () => {
+    // Coletâneas e biografias ("As obras de X") afogam a obra que a pessoa
+    // quer conhecer — foi o que a busca por Frank Herbert devolveu.
+    const r = await buscarAutor('Machado de Assis');
+    for (const o of r.obras) {
+      expect(o.titulo.toLowerCase()).not.toContain('machado de assis');
+    }
+  });
+
+  it('põe as bem avaliadas primeiro', async () => {
+    const r = await buscarAutor('Machado de Assis');
+    const notas = r.obras.map(o => o.ratingMedio || 0);
+    expect(notas).toEqual([...notas].sort((a, b) => b - a));
   });
 });
