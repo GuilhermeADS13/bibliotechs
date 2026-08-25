@@ -532,6 +532,12 @@ export function mensagemDeFalha(erro) {
       return 'A resposta demorou demais e eu interrompi a espera. Tente perguntar de novo.';
     case 'sem-conexao':
       return 'Não consegui me conectar. Verifique sua internet e tente de novo.';
+    case 'falha-upstream':
+      // Este caso passou dias escondido atrás da mensagem genérica: a chave do
+      // modelo tinha expirado e o texto só dizia "tente novamente", como se
+      // fosse instabilidade passageira. Nomear a falha é o que faz alguém ir
+      // olhar a configuração em vez de esperar passar.
+      return 'O serviço de linguagem recusou meu acesso — isso costuma ser configuração, não instabilidade. Se persistir, vale avisar quem cuida do app. Enquanto isso, ainda respondo com os dados da sua estante.';
     case 'sem-chave':
       return 'Ainda não estou conectada ao modelo de linguagem. Posso responder sobre estatísticas, resumos e recomendações da sua estante.';
     default:

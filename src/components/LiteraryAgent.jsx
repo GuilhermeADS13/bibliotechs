@@ -8,6 +8,7 @@ import {
   resolverAutorCitado, contextoDoAutor, citaAlgumNome,
 } from '../bia';
 import { BiaAvatar } from './BiaAvatar';
+import { TextoFormatado } from './TextoFormatado';
 import { diaDeHoje, rotularDia } from '../hooks/useConversas';
 
 // A saudação anterior abria com "Saudações" e recitava as próprias
@@ -197,12 +198,19 @@ export function LiteraryAgent({
     // O modelo falhou. As regras só assumem se souberem responder de fato; do
     // contrário o usuário via um texto genérico que parecia resposta e se
     // repetia igual, escondendo que algo tinha quebrado.
-    const daRegra = await responderComRegras(pergunta, autorCitado, erro);
-    return daRegra || mensagemDeFalha(erro);
+    //
+    // E, quando assumem, DIZEM que assumiram. Uma chave expirada deixou a
+    // B.IA sem modelo por dias sem ninguém perceber: as regras respondiam
+    // com cara de resposta, e as queixas viravam "ela não entendeu" em vez
+    // de "ela está fora do ar". O aviso vale para todo ramo, presente e
+    // futuro — por isso fica aqui, e não dentro de cada um.
+    const daRegra = await responderComRegras(pergunta, autorCitado);
+    if (daRegra) return `${daRegra}\n\n— ${mensagemDeFalha(erro)}`;
+    return mensagemDeFalha(erro);
   };
 
   // Motor de regras original — agora o fallback, não o caminho principal.
-  const responderComRegras = async (pergunta, autorCitado = null, erroDoModelo = null) => {
+  const responderComRegras = async (pergunta, autorCitado = null) => {
     const contexto = prepararContextoEstante();
     const perguntaLower = pergunta.toLowerCase();
     let resposta = '';
@@ -221,31 +229,34 @@ export function LiteraryAgent({
 
     if (isMensal) {
       const stats = calcularEstatisticas(livros, new Date().getFullYear());
-      resposta = `### 📅 Análise Temporal de ${stats.ano}\n\n${resumoMensalTexto(stats)}`;
+      resposta = `**Seu ${stats.ano} até aqui**\n\n${resumoMensalTexto(stats)}`;
 
       if (stats.totalNoAno > 0) {
         const linhas = stats.porMes
           .filter(m => m.quantidade > 0)
           .map(m => `- **${m.nomeLongo}**: ${m.quantidade} ${m.quantidade === 1 ? 'livro' : 'livros'}${m.paginas > 0 ? ` (${m.paginas.toLocaleString('pt-BR')} pág.)` : ''}`);
-        resposta += `\n\n**Distribuição mensal:**\n${linhas.join('\n')}`;
+        resposta += `\n\nMês a mês ficou assim:\n${linhas.join('\n')}`;
 
         if (stats.sequenciaAtual > 1) {
-          resposta += `\n\nRegistro uma sequência de ${stats.sequenciaAtual} meses consecutivos com leitura — consistência é mais relevante que volume esporádico.`;
+          resposta += `\n\nSão ${stats.sequenciaAtual} meses seguidos com leitura. Isso vale mais que um mês de pico e três parados.`;
         } else if (stats.mesesAtivos > 1) {
-          resposta += `\n\nSua distribuição é intermitente. Regularidade produziria resultados superiores ao acúmulo concentrado.`;
+          resposta += `\n\nSua leitura vem em ondas: alguns meses cheios, outros vazios. Não tem nada de errado nisso, mas um ritmo mais espalhado rende mais no fim do ano.`;
         }
       }
-      resposta += `\n\nConsulte a aba **📊 Estatísticas** para o gráfico completo.`;
+      resposta += `\n\nO gráfico inteiro tá na aba **📊 Estatísticas**, se quiser ver.`;
     }
     else if (isStats) {
       const stats = calcularEstatisticas(livros, new Date().getFullYear());
-      resposta = `Seus dados quantitativos revelam um acervo de ${contexto.totalLivros} unidades. Analiticamente, sua taxa de conclusão é de ${stats.taxaConclusao}%. O fato de você ter ${contexto.abandonei} abandonos (${stats.taxaAbandono}%) sugere um filtro crítico rigoroso ou inconsistência na seleção. Qual dessas hipóteses você sustenta?`;
+      resposta = `Você tem ${contexto.totalLivros} ${contexto.totalLivros === 1 ? 'livro' : 'livros'} na estante e termina ${stats.taxaConclusao}% do que começa.`
+        + (contexto.abandonei > 0
+          ? ` Os ${contexto.abandonei} ${contexto.abandonei === 1 ? 'abandono' : 'abandonos'} (${stats.taxaAbandono}%) podem ser duas coisas bem diferentes: ou você larga rápido o que não te serve, ou a escolha na hora de começar anda falhando. Qual das duas?`
+          : ` Nenhum abandono até agora — ou a escolha é boa, ou você termina o que começa por teimosia.`);
 
       if (stats.totalNoAno > 0) {
-        resposta += `\n\nNo recorte de ${stats.ano}: ${stats.totalNoAno} ${stats.totalNoAno === 1 ? 'obra concluída' : 'obras concluídas'}, média de ${stats.mediaMensal} por mês ativo${stats.melhorMes ? `, com pico em ${stats.melhorMes.nomeLongo}` : ''}.`;
+        resposta += `\n\nEm ${stats.ano} ${stats.totalNoAno === 1 ? 'foi 1 livro' : `foram ${stats.totalNoAno} livros`}, uma média de ${stats.mediaMensal} por mês com leitura${stats.melhorMes ? `, e ${stats.melhorMes.nomeLongo} foi o mês mais forte` : ''}.`;
       }
       if (stats.notaMedia > 0) {
-        resposta += ` Sua nota média é ${stats.notaMedia}/5 — ${stats.notaMedia >= 4.5 ? 'generosidade avaliativa que merece questionamento' : stats.notaMedia >= 3.5 ? 'um padrão equilibrado' : 'um rigor considerável'}.`;
+        resposta += ` Sua média é ${stats.notaMedia}/5 — ${stats.notaMedia >= 4.5 ? 'alta demais pra ser só sorte: ou a escolha é ótima, ou as estrelas andam saindo fáceis' : stats.notaMedia >= 3.5 ? 'um equilíbrio saudável' : 'nota difícil de arrancar de você'}.`;
       }
     }
     else if (isResumo) {
@@ -270,30 +281,38 @@ export function LiteraryAgent({
       const autor = autorExtraido || livroParaResumir?.autor;
 
       if (!titulo) {
-        resposta = `Você solicitou uma análise, mas não identifiquei uma obra específica. Por favor, especifique: "Resuma o livro [Título]" ou "Análise de [Título] de [Autor]".`;
+        resposta = `Qual livro? Me diz o título que eu falo dele — pode ser só o nome mesmo, tipo "resuma Torto Arado". Se souber o autor, melhor ainda.`;
       } else {
         // Buscar na internet
         const infoLivro = await buscarLivroNaInternet(titulo, autor);
 
         if (infoLivro) {
-          resposta = `### 📖 Análise Crítica: "${infoLivro.titulo}"\n\n` +
-            `**Metadados Técnicos:**\n` +
-            `- Autor: ${infoLivro.autor}\n` +
-            `- Gênero: ${infoLivro.genero}\n` +
-            `- Páginas: ${infoLivro.paginas}\n` +
-            `- Editora: ${infoLivro.editora}\n` +
-            `- Publicação: ${infoLivro.dataPublicacao}\n` +
-            `- Avaliação Média (Google Books): ${infoLivro.ratingMedio}/5\n\n` +
-            `**Sinopse Oficial:**\n${infoLivro.descricao}\n\n` +
-            `**Análise Crítica Personalizada:**\n` +
-            `Esta obra insere-se no gênero ${infoLivro.genero}, apresentando uma estrutura narrativa que merece escrutínio rigoroso. `;
-          
-          // Adicionar análise personalizada se o livro está na estante
-          if (livroParaResumir) {
-            resposta += `Você atribuiu a nota ${livroParaResumir.nota}/5, sugerindo que a obra ${livroParaResumir.nota >= 4 ? 'alcançou uma excelência formal notável' : livroParaResumir.nota >= 3 ? 'apresenta méritos com ressalvas estruturais' : 'possui limitações significativas em sua execução'}.`;
+          // Só o que a Google Books devolveu, sem fingir leitura. A versão
+          // anterior emendava "uma estrutura narrativa que merece escrutínio
+          // rigoroso" em qualquer livro — frase que serve para todos e não
+          // diz nada sobre nenhum. Comentário de verdade depende do modelo.
+          const ficha = [
+            infoLivro.genero !== 'Não especificado' && infoLivro.genero,
+            infoLivro.paginas !== 'N/A' && `${infoLivro.paginas} páginas`,
+            infoLivro.editora !== 'N/A' && infoLivro.editora,
+            infoLivro.dataPublicacao !== 'N/A' && infoLivro.dataPublicacao,
+          ].filter(Boolean).join(' · ');
+
+          resposta = `**${infoLivro.titulo}**, de ${infoLivro.autor}.`
+            + (ficha ? `\n${ficha}` : '')
+            + (infoLivro.ratingMedio !== 'N/A' ? `\nNo Google Books: ${infoLivro.ratingMedio}/5` : '');
+
+          if (infoLivro.descricao !== 'Descrição não disponível') {
+            resposta += `\n\n${infoLivro.descricao}`;
+          }
+
+          if (livroParaResumir && Number(livroParaResumir.nota) > 0) {
+            resposta += `\n\nEsse tá na sua estante, com ${livroParaResumir.nota}/5.`;
+          } else if (livroParaResumir) {
+            resposta += `\n\nEsse tá na sua estante, ainda sem nota.`;
           }
         } else {
-          resposta = `A busca na Google Books API não retornou resultados para "${titulo}". Verifique o título ou tente com um autor diferente.`;
+          resposta = `Não achei nada com "${titulo}". Confere a grafia, ou me diz o autor junto que eu tento de novo.`;
         }
       }
     } 
@@ -307,10 +326,8 @@ export function LiteraryAgent({
       const lista = autorCitado.obras
         .map(o => `- **${o.titulo}**${o.ano ? ` (${o.ano})` : ''}${o.ratingMedio > 0 ? ` · ${o.ratingMedio}/5` : ''}`)
         .join('\n');
-      // O motivo da falha vai junto: sem ele a pessoa fica sem saber por que a
-      // resposta veio pela metade — e "não estou logada" tem conserto imediato.
       resposta = `De **${autorCitado.nome}**, estes são títulos que encontrei agora:\n\n${lista}\n\n`
-        + `Não consegui comentar cada um nem dizer por onde começar. ${mensagemDeFalha(erroDoModelo)}`;
+        + `Não consegui comentar cada um nem dizer por onde começar.`;
     }
     // Nome citado que não deu para confirmar: sem o modelo não há o que dizer.
     // A checagem é pela pergunta, não pelo que a Google Books confirmou — o
@@ -330,24 +347,22 @@ export function LiteraryAgent({
       });
 
       if (motivo === 'sem-historico') {
-        resposta = `Não posso recomendar sem base empírica. Sua estante não registra obras concluídas. Marque ao menos um livro como "lido" e atribua uma nota — só então minhas sugestões terão fundamento.`;
+        resposta = `Pra indicar direito eu preciso saber do que você gosta, e ainda não tem nada marcado como lido aí. Marca um livro que você já terminou e dá uma nota — a partir daí eu acerto bem mais.`;
       } else if (motivo === 'sem-generos') {
-        resposta = `Seus livros lidos não têm gênero nem autor preenchidos. Sem esses metadados, qualquer recomendação seria arbitrária. Complete os campos na aba Adicionar.`;
+        resposta = `Seus livros lidos estão sem gênero e sem autor preenchidos. Com esses campos vazios eu só chutaria. Completa na aba Adicionar que eu volto a indicar.`;
       } else if (recomendacoes.length === 0) {
-        resposta = `A busca não retornou títulos fora do seu acervo. Isso pode indicar cobertura limitada da API para os gêneros que você frequenta — ou que seu repertório já os esgotou.`;
+        resposta = `Não achei nada fora do que você já tem. Pode ser limite da busca nos gêneros que você lê — ou você já passou por eles.`;
       } else {
         const generos = perfil.generosFavoritos.slice(0, 2).map(g => g.nome).join(' e ');
-        resposta = `### 📚 Recomendações Baseadas no Seu Histórico\n\n`
-          + `Analisei suas ${perfil.totalLidos} ${perfil.totalLidos === 1 ? 'leitura concluída' : 'leituras concluídas'}. `
-          + `Sua preferência recai sobre ${generos || 'gêneros variados'}`
-          + `${perfil.notaMedia > 0 ? `, com nota média de ${perfil.notaMedia}/5` : ''}. Seleção:\n\n`
+        resposta = `Pelas suas ${perfil.totalLidos} ${perfil.totalLidos === 1 ? 'leitura' : 'leituras'}, você puxa pra ${generos || 'gêneros variados'}`
+          + `${perfil.notaMedia > 0 ? ` e sua média é ${perfil.notaMedia}/5` : ''}. Separei estas:\n\n`
           + recomendacoes.map((r, i) =>
               `**${i + 1}. ${r.titulo}**\n`
               + `- Autor: ${r.autor}${r.ano ? ` (${r.ano})` : ''}\n`
               + `${r.ratingMedio > 0 ? `- Avaliação: ${r.ratingMedio}/5\n` : ''}`
               + `- Critério: ${r.motivo}`
             ).join('\n\n');
-        resposta += `\n\nAdvertência analítica: recomendar pelo que você já aprova reforça seus vieses. A aba **📊 Estatísticas** mostra a lista completa — considere também romper com o padrão.`;
+        resposta += `\n\nUm aviso: indicar só pelo que você já aprova reforça o seu próprio gosto. Se quiser sair do padrão, a lista inteira tá na aba **📊 Estatísticas**.`;
       }
     }
 
@@ -688,7 +703,7 @@ export function LiteraryAgent({
                 whiteSpace: 'pre-wrap'
               }}
             >
-              {msg.texto}
+              <TextoFormatado texto={msg.texto} />
             </div>
           </div>
         ))}
@@ -706,7 +721,7 @@ export function LiteraryAgent({
                 color: DA.espresso, fontSize: '13px', lineHeight: 1.6,
                 whiteSpace: 'pre-wrap', wordBreak: 'break-word',
               }}>
-                {parcial}
+                <TextoFormatado texto={parcial} />
                 <span className="cursor-bia" aria-hidden="true">▌</span>
               </div>
             ) : (

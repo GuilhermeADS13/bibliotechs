@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { rotularDia, diaDeHoje } from '../hooks/useConversas';
 import { BiaAvatar } from './BiaAvatar';
+import { TextoFormatado } from './TextoFormatado';
 
 // Histórico das conversas na aba da B.IA. O widget flutuante é estreito e serve
 // para conversar; aqui há espaço para reler o que já foi dito.
@@ -149,7 +150,7 @@ export function HistoricoConversas({ conversas, carregando, onApagar, DA, user }
                         fontSize: '13px', lineHeight: 1.55, whiteSpace: 'pre-wrap',
                         wordBreak: 'break-word',
                       }}>
-                        {msg.texto}
+                        <TextoFormatado texto={msg.texto} />
                       </div>
                     </div>
                   ))}
