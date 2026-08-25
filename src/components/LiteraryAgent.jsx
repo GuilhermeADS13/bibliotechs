@@ -220,7 +220,7 @@ export function LiteraryAgent({
     const perguntaLower = pergunta.toLowerCase();
     let resposta = '';
 
-    // FUNCIONALIDADE: Resumo com dados da internet
+    // Resumo com dados da Google Books.
     const isResumo = perguntaLower.includes('resumo') || perguntaLower.includes('resuma') || perguntaLower.includes('resumir') || perguntaLower.includes('análise');
     
     // Tom Crítico para Estatísticas (Prioridade sobre Resumo se contiver palavras-chave)
@@ -288,7 +288,9 @@ export function LiteraryAgent({
       if (!titulo) {
         resposta = `Qual livro? Me diz o título que eu falo dele — pode ser só o nome mesmo, tipo "resuma Torto Arado". Se souber o autor, melhor ainda.`;
       } else {
-        // Buscar na internet
+        // Uma consulta a UMA API, não busca livre na web: a B.IA não navega
+        // e não tem ferramenta de busca. Daqui vem fato verificável — autor,
+        // editora, ano, páginas. O resto é conhecimento do modelo.
         const infoLivro = await buscarLivroNoGoogleBooks(titulo, autor);
 
         if (infoLivro) {
