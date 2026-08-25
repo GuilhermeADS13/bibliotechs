@@ -61,8 +61,13 @@ export function LiteraryAgent({
     }
   }, [exibidas, parcial]);
 
-  // Buscar informações do livro na Google Books API
-  const buscarLivroNaInternet = async (titulo, autor = '') => {
+  // Consulta a Google Books por um livro específico.
+  //
+  // O nome anterior era `buscarLivroNaInternet`, e prometia mais do que faz:
+  // a B.IA não navega na web, não tem ferramenta de busca e nunca teve. As
+  // únicas fontes são esta API — fatos verificáveis: autor, editora, ano,
+  // páginas — e o conhecimento do próprio modelo, para o resto.
+  const buscarLivroNoGoogleBooks = async (titulo, autor = '') => {
     try {
       const queryParts = [];
       if (titulo.trim().length >= 2) queryParts.push(`intitle:${titulo}`);
@@ -105,7 +110,7 @@ export function LiteraryAgent({
         ratingMedio: item.volumeInfo.averageRating || 'N/A'
       };
     } catch (e) {
-      console.error('Erro ao buscar livro na API:', e);
+      console.error('Erro ao consultar a Google Books:', e);
       return null;
     }
   };
@@ -155,7 +160,7 @@ export function LiteraryAgent({
     // Books e a pessoa está esperando a resposta — em série, a espera dobrava.
     const livroCitado = identificarLivroMencionado(pergunta, livros, mensagens);
     const [info, autorCitado] = await Promise.all([
-      livroCitado ? buscarLivroNaInternet(livroCitado.titulo, livroCitado.autor || '') : null,
+      livroCitado ? buscarLivroNoGoogleBooks(livroCitado.titulo, livroCitado.autor || '') : null,
       // A pessoa pode citar uma autora que ela ainda NÃO tem na estante — foi
       // exatamente o que quebrou: o código só reconhecia autores cadastrados,
       // ignorava o nome perguntado e respondia sobre outro.
@@ -284,7 +289,7 @@ export function LiteraryAgent({
         resposta = `Qual livro? Me diz o título que eu falo dele — pode ser só o nome mesmo, tipo "resuma Torto Arado". Se souber o autor, melhor ainda.`;
       } else {
         // Buscar na internet
-        const infoLivro = await buscarLivroNaInternet(titulo, autor);
+        const infoLivro = await buscarLivroNoGoogleBooks(titulo, autor);
 
         if (infoLivro) {
           // Só o que a Google Books devolveu, sem fingir leitura. A versão
