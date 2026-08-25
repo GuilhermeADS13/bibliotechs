@@ -484,6 +484,7 @@ export default function App() {
             googleBooksKey={import.meta.env.VITE_GOOGLE_BOOKS_API_KEY}
             onIrParaAdicionar={() => setAba('adicionar')}
             onIrParaMetas={() => setAba('metas')}
+            onAdicionarLivro={adicionar}
           />
         )}
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { gerarRecomendacoes } from '../recomendacoes';
 import { bookPlaceholder } from '../placeholder';
 
@@ -23,14 +23,54 @@ const MENSAGENS_VAZIO = {
   },
 };
 
-export function Recomendacoes({ livros, DA, GRAD_BTN, googleBooksKey, onIrParaAdicionar }) {
+export function Recomendacoes({ livros, DA, GRAD_BTN, googleBooksKey, onIrParaAdicionar, onAdicionarLivro }) {
   const [itens, setItens]         = useState([]);
   const [perfil, setPerfil]       = useState(null);
   const [motivo, setMotivo]       = useState('sem-historico');
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro]           = useState('');
   const [recarregar, setRecarregar] = useState(0);
+  // Títulos que a pessoa acabou de mandar para a estante nesta visita.
+  const [adicionados, setAdicionados] = useState({});
   const abortRef = useRef(null);
+  // O efeito não depende mais de `livros` direto (ver `assinatura` abaixo),
+  // mas a busca precisa da lista atual para não recomendar o que já está lá.
+  const livrosRef = useRef(livros);
+  livrosRef.current = livros;
+
+  // Só o que muda a RECOMENDAÇÃO entra aqui. Adicionar um livro em "quero
+  // ler" não altera o perfil de leitura (peso 0 no cálculo), então não deve
+  // refazer a busca — senão a lista se reorganizava embaixo do dedo de quem
+  // acabou de clicar em adicionar, e ainda gastava chamadas na Google Books.
+  const assinatura = useMemo(
+    () => (Array.isArray(livros) ? livros : [])
+      .filter(l => l?.status === 'lido' || l?.status === 'abandonei')
+      .map(l => `${l.titulo}|${l.status}|${l.nota}|${l.genero}|${l.autor}`)
+      .sort()
+      .join(';'),
+    [livros]
+  );
+
+  const adicionar = async (livro) => {
+    if (!onAdicionarLivro || adicionados[livro.titulo]) return;
+    // Marca antes de gravar: o clique tem de responder na hora. Se falhar,
+    // desmarca — o alerta do erro vem de quem grava.
+    setAdicionados(a => ({ ...a, [livro.titulo]: true }));
+    try {
+      await onAdicionarLivro({
+        titulo: livro.titulo,
+        autor: livro.autor === 'Desconhecido' ? '' : livro.autor,
+        genero: livro.genero || '',
+        paginas: livro.paginas || '',
+        capa: livro.capa || '',
+        status: 'quero-ler',
+        dataTermino: '',
+        nota: 0,
+      });
+    } catch {
+      setAdicionados(a => ({ ...a, [livro.titulo]: false }));
+    }
+  };
 
   useEffect(() => {
     // Cancela a busca anterior se a estante mudar antes de a resposta chegar.
@@ -42,7 +82,7 @@ export function Recomendacoes({ livros, DA, GRAD_BTN, googleBooksKey, onIrParaAd
     setCarregando(true);
     setErro('');
 
-    gerarRecomendacoes(livros, { googleBooksKey, limite: 6, sinal: controller.signal })
+    gerarRecomendacoes(livrosRef.current, { googleBooksKey, limite: 6, sinal: controller.signal })
       .then(r => {
         if (!ativo) return;
         setItens(r.recomendacoes);
@@ -57,7 +97,8 @@ export function Recomendacoes({ livros, DA, GRAD_BTN, googleBooksKey, onIrParaAd
       .finally(() => { if (ativo) setCarregando(false); });
 
     return () => { ativo = false; controller.abort(); };
-  }, [livros, googleBooksKey, recarregar]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assinatura, googleBooksKey, recarregar]);
 
   const vazio = MENSAGENS_VAZIO[motivo] || MENSAGENS_VAZIO['sem-resultados'];
 
@@ -146,6 +187,26 @@ export function Recomendacoes({ livros, DA, GRAD_BTN, googleBooksKey, onIrParaAd
                 }}>
                   {livro.motivo}
                 </p>
+
+                {/* Antes só havia um link para a aba Adicionar, onde a pessoa
+                    redigitava tudo o que já estava na tela. */}
+                {onAdicionarLivro && (
+                  <button
+                    onClick={() => adicionar(livro)}
+                    disabled={!!adicionados[livro.titulo]}
+                    style={{
+                      marginTop: '8px', alignSelf: 'flex-start',
+                      fontSize: '11px', fontWeight: '800',
+                      padding: '5px 10px', borderRadius: '8px',
+                      cursor: adicionados[livro.titulo] ? 'default' : 'pointer',
+                      border: `1px solid ${adicionados[livro.titulo] ? DA.teal : DA.oxblood}`,
+                      background: adicionados[livro.titulo] ? `${DA.teal}18` : 'transparent',
+                      color: adicionados[livro.titulo] ? DA.teal : DA.oxblood,
+                    }}
+                  >
+                    {adicionados[livro.titulo] ? '✓ Na estante' : '+ Quero ler'}
+                  </button>
+                )}
               </div>
             </div>
           ))}

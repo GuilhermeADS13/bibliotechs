@@ -39,7 +39,7 @@ function Destaque({ valor, rotulo, sub, cor, DA }) {
   );
 }
 
-export function Estatisticas({ livros, DA, GRAD_BTN, googleBooksKey, onIrParaAdicionar, onIrParaMetas }) {
+export function Estatisticas({ livros, DA, GRAD_BTN, googleBooksKey, onIrParaAdicionar, onIrParaMetas, onAdicionarLivro }) {
   const anos = useMemo(() => anosDisponiveis(livros), [livros]);
   const [ano, setAno] = useState(anos[0]);
 
@@ -248,6 +248,7 @@ export function Estatisticas({ livros, DA, GRAD_BTN, googleBooksKey, onIrParaAdi
         GRAD_BTN={GRAD_BTN}
         googleBooksKey={googleBooksKey}
         onIrParaAdicionar={onIrParaAdicionar}
+        onAdicionarLivro={onAdicionarLivro}
       />
     </div>
   );
