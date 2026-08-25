@@ -102,6 +102,13 @@ export function separarFoto(livro) {
  * A ORDEM IMPORTA. A foto é gravada no lugar novo ANTES de sair do livro. Se
  * falhar no meio, ela existe nos dois lugares — a estante mostra a embutida e a
  * próxima tentativa conserta. Na ordem inversa, uma falha perderia a foto.
+ *
+ * E não basta a gravação não ter dado erro: entre gravar e apagar, este código
+ * LÊ a cópia de volta e compara. Existe porque este banco não tem rede de
+ * segurança — o Point-in-Time Recovery exige plano pago, e a retenção padrão do
+ * Firestore é de uma hora. Um problema notado no dia seguinte não teria de onde
+ * ser recuperado. A leitura extra custa uma operação por foto, num limite
+ * gratuito de 50 mil por dia; a foto de alguém não tem preço equivalente.
  */
 export async function migrarFotoEmbutida(livroId, dados, uid) {
   if (!ehDataUri(dados)) return false;
@@ -109,8 +116,17 @@ export async function migrarFotoEmbutida(livroId, dados, uid) {
     const mod = await carregarFirestore();
     if (!mod) return false;
     const { fs, db } = mod;
+    const refFoto = fs.doc(db, 'fotos', String(livroId));
 
-    await fs.setDoc(fs.doc(db, 'fotos', String(livroId)), { dados, uid });
+    await fs.setDoc(refFoto, { dados, uid });
+
+    // Confirma que a cópia está lá e é a mesma antes de apagar o original.
+    const conferencia = await fs.getDoc(refFoto);
+    if (!conferencia.exists() || conferencia.data()?.dados !== dados) {
+      console.error('Foto não conferiu após gravar; livro preservado:', livroId);
+      return false;
+    }
+
     await fs.updateDoc(fs.doc(db, 'livros', String(livroId)), {
       fotoUsuario: fs.deleteField(),
       temFoto: true,

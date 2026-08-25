@@ -3,15 +3,25 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // O Firestore é carregado sob demanda; o mock intercepta esse carregamento e
 // registra a ordem exata das escritas — que é o que importa aqui.
 const chamadas = [];
+const gravados = new Map();
 const fsFake = {
   doc: (_db, col, id) => ({ col, id }),
-  setDoc: vi.fn(async (ref, dados) => { chamadas.push(['setDoc', ref.col, ref.id, dados]); }),
+  setDoc: vi.fn(async (ref, dados) => {
+    chamadas.push(['setDoc', ref.col, ref.id, dados]);
+    gravados.set(`${ref.col}/${ref.id}`, dados);
+  }),
   updateDoc: vi.fn(async (ref, dados) => { chamadas.push(['updateDoc', ref.col, ref.id, dados]); }),
   deleteDoc: vi.fn(async (ref) => { chamadas.push(['deleteDoc', ref.col, ref.id]); }),
-  getDoc: vi.fn(async (ref) => ({
-    exists: () => ref.id === 'com-foto',
-    data: () => ({ dados: 'data:image/jpeg;base64,AAAA' }),
-  })),
+  // Guarda o que foi gravado para a conferencia da migracao ser real: sem
+  // isto o teste de "grava e le de volta" nao provaria nada.
+  getDoc: vi.fn(async (ref) => {
+    const gravado = gravados.get(`${ref.col}/${ref.id}`);
+    if (gravado) return { exists: () => true, data: () => gravado };
+    return {
+      exists: () => ref.id === 'com-foto',
+      data: () => ({ dados: 'data:image/jpeg;base64,AAAA' }),
+    };
+  }),
   deleteField: () => '<<apagar>>',
 };
 vi.mock('../firebase', () => ({
@@ -20,7 +30,7 @@ vi.mock('../firebase', () => ({
 
 import { ehDataUri, separarFoto, salvarFoto, lerFoto, apagarFoto, migrarFotoEmbutida } from '../fotos';
 
-beforeEach(() => { chamadas.length = 0; vi.clearAllMocks(); });
+beforeEach(() => { chamadas.length = 0; gravados.clear(); vi.clearAllMocks(); });
 
 const FOTO = 'data:image/jpeg;base64,/9j/4AAQSkZJRg';
 
@@ -117,6 +127,34 @@ describe('migrarFotoEmbutida', () => {
 
   it('não toca no livro se a gravação da foto falhar', async () => {
     fsFake.setDoc.mockRejectedValueOnce(new Error('permissão negada'));
+    expect(await migrarFotoEmbutida('livro-1', FOTO, 'uid-abc')).toBe(false);
+    expect(chamadas.some(c => c[0] === 'updateDoc')).toBe(false);
+  });
+
+  // Este banco nao tem rede de seguranca: o Point-in-Time Recovery exige plano
+  // pago e a retencao padrao do Firestore e de uma hora. Um problema notado no
+  // dia seguinte nao teria de onde ser recuperado — por isso a copia e LIDA de
+  // volta e comparada antes de o original ser apagado.
+  it('lê a cópia de volta antes de apagar o original', async () => {
+    await migrarFotoEmbutida('livro-1', FOTO, 'uid-abc');
+    const ordem = fsFake.setDoc.mock.invocationCallOrder[0];
+    const leitura = fsFake.getDoc.mock.invocationCallOrder[0];
+    const apagou = fsFake.updateDoc.mock.invocationCallOrder[0];
+    expect(ordem).toBeLessThan(leitura);
+    expect(leitura).toBeLessThan(apagou);
+  });
+
+  it('preserva o livro se a cópia não estiver lá', async () => {
+    fsFake.getDoc.mockResolvedValueOnce({ exists: () => false, data: () => null });
+    expect(await migrarFotoEmbutida('livro-1', FOTO, 'uid-abc')).toBe(false);
+    expect(chamadas.some(c => c[0] === 'updateDoc')).toBe(false);
+  });
+
+  it('preserva o livro se a cópia estiver diferente', async () => {
+    fsFake.getDoc.mockResolvedValueOnce({
+      exists: () => true,
+      data: () => ({ dados: 'data:image/jpeg;base64,OUTRACOISA' }),
+    });
     expect(await migrarFotoEmbutida('livro-1', FOTO, 'uid-abc')).toBe(false);
     expect(chamadas.some(c => c[0] === 'updateDoc')).toBe(false);
   });
