@@ -16,7 +16,10 @@ const STATUS_STYLE = (DA) => ({
   'abandonei': { bg: `${DA.oxblood}22`,     color: DA.oxblood,     border: DA.oxblood },
 });
 
-export function BookCard({ livro, DA, GRAD_BTN, onAtualizar, onRemover, onResenha }) {
+// `refFoto` vem do useFotos: é ele que avisa quando este card chegou perto da
+// tela, para só então buscar a foto do usuário. Sem foto a buscar, vem
+// undefined e a <img> se comporta como antes.
+export function BookCard({ livro, refFoto, DA, GRAD_BTN, onAtualizar, onRemover, onResenha }) {
   const [hover, setHover]         = useState(false);
   const [editando, setEditando]   = useState(false);
   const [mostrando, setMostrando] = useState('auto'); // 'auto' | 'usuario' | 'api'
@@ -26,7 +29,9 @@ export function BookCard({ livro, DA, GRAD_BTN, onAtualizar, onRemover, onResenh
   const statusStyles = STATUS_STYLE(DA);
   const cor = statusStyles[livro.status] || statusStyles['quero-ler'];
 
-  const temFotoUsuario = !!livro.fotoUsuario;
+  // `temFoto` responde antes de a foto chegar; sem ele o selo e o botão de
+  // alternar piscariam na tela quando o download terminasse.
+  const temFotoUsuario = !!livro.fotoUsuario || !!livro.temFoto;
   const temCapaApi     = !!livro.capa;
 
   // Decide qual imagem mostrar
@@ -69,6 +74,7 @@ export function BookCard({ livro, DA, GRAD_BTN, onAtualizar, onRemover, onResenh
       {/* IMAGEM */}
       <div style={{ position: 'relative', overflow: 'hidden' }}>
         <img
+          ref={refFoto}
           src={imagemExibida || placeholder}
           alt={livro.titulo}
           style={{

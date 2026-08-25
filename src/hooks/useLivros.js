@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { carregarFirestore } from '../firebase';
+import { salvarFoto, apagarFoto, separarFoto, migrarFotoEmbutida, ehDataUri } from '../fotos';
 
 // Move livros salvos sem conta (localStorage) para o Firestore quando o usuário loga.
 // Remove do localStorage ANTES de enviar para evitar migração duplicada (StrictMode/reentrância).
@@ -15,7 +16,11 @@ async function migrarLocaisParaFirestore(user) {
     const { fs, db } = mod;
     for (const l of locais) {
       const { id: _ignored, ...data } = l;
-      await fs.addDoc(fs.collection(db, 'livros'), { ...data, uid: user.uid, criadoEm: fs.serverTimestamp() });
+      // Já separada na entrada: sem isto a foto entraria embutida no livro
+      // e a migração teria de tirá-la de lá logo depois.
+      const { dados, foto } = separarFoto(data);
+      const ref = await fs.addDoc(fs.collection(db, 'livros'), { ...dados, uid: user.uid, criadoEm: fs.serverTimestamp() });
+      if (foto) await salvarFoto(ref.id, foto, user.uid);
     }
   } catch (e) {
     console.error('Falha ao migrar livros locais para a conta:', e);
@@ -23,9 +28,31 @@ async function migrarLocaisParaFirestore(user) {
   }
 }
 
+/**
+ * Sobe para /fotos as fotos que ainda estão dentro dos documentos de livro.
+ *
+ * Uma de cada vez, de propósito: são poucas dezenas por estante e ninguém
+ * está esperando por elas — disparar tudo de uma vez só somaria pico de
+ * escrita para chegar ao mesmo lugar.
+ */
+async function migrarFotosEmbutidas(lista, user, jaVistos) {
+  if (!user) return;
+  for (const livro of lista) {
+    if (!ehDataUri(livro.fotoUsuario) || jaVistos.has(livro.id)) continue;
+    // Marca ANTES de tentar: com o snapshot chegando de novo a cada escrita,
+    // marcar depois deixaria a mesma foto ser migrada duas vezes.
+    jaVistos.add(livro.id);
+    await migrarFotoEmbutida(livro.id, livro.fotoUsuario, user.uid);
+  }
+}
+
 export function useLivros(user) {
   const [livros, setLivros]   = useState([]);
   const [loading, setLoading] = useState(true);
+  // Ids já tratados pela migração das fotos embutidas. Sem esta trava a
+  // migração se repetiria sem fim: cada `updateDoc` dela dispara o
+  // `onSnapshot`, que chamaria a migração de novo.
+  const fotosMigradas = useRef(new Set());
 
   useEffect(() => {
     if (!user) {
@@ -48,8 +75,13 @@ export function useLivros(user) {
         q,
         snap => {
           // id do documento Firestore sempre tem prioridade sobre qualquer campo 'id' salvo
-          setLivros(snap.docs.map(d => { const data = d.data(); delete data.id; return { id: d.id, ...data }; }));
+          const lista = snap.docs.map(d => { const data = d.data(); delete data.id; return { id: d.id, ...data }; });
+          setLivros(lista);
           setLoading(false);
+          // Estantes criadas antes da separação ainda trazem a foto dentro
+          // do livro. Movê-las aqui é o que faz a migração acontecer sozinha,
+          // no primeiro acesso de cada pessoa.
+          migrarFotosEmbutidas(lista, user, fotosMigradas.current);
         },
         err => {
           // Sem isto, uma falha no listener deixaria o app preso em "Carregando..."
@@ -82,8 +114,12 @@ export function useLivros(user) {
     }
     // Remove campo 'id' gerado pelo client antes de salvar no Firestore
     const { id: _ignored, ...data } = livroFinal;
+    // A foto vai para /fotos, não para dentro do livro: ver src/fotos.js.
+    const { dados, foto } = separarFoto(data);
     const { fs, db } = await carregarFirestore();
-    await fs.addDoc(fs.collection(db, 'livros'), { ...data, uid: user.uid, criadoEm: fs.serverTimestamp() });
+    const ref = await fs.addDoc(fs.collection(db, 'livros'), { ...dados, uid: user.uid, criadoEm: fs.serverTimestamp() });
+    // Depois do addDoc porque só aqui existe o id — a foto usa o mesmo.
+    if (foto) await salvarFoto(ref.id, foto, user.uid);
   };
 
   const atualizar = async (id, dados) => {
@@ -97,8 +133,12 @@ export function useLivros(user) {
     }
     if (!user) { setLivros(p => p.map(l => l.id === id ? { ...l, ...dadosFinal } : l)); return; }
     try {
+      // `foto` só vem definida quando a chamada mexeu na foto. undefined
+      // significa "não tocou nela" e não pode virar apagamento.
+      const { dados, foto } = separarFoto(dadosFinal);
       const { fs, db } = await carregarFirestore();
-      await fs.updateDoc(fs.doc(db, 'livros', String(id)), dadosFinal);
+      await fs.updateDoc(fs.doc(db, 'livros', String(id)), dados);
+      if (foto !== undefined) await salvarFoto(id, foto, user.uid);
     } catch (e) {
       console.error('Erro ao atualizar livro:', e);
       alert('Não foi possível atualizar o livro. Tente novamente.');
@@ -110,6 +150,8 @@ export function useLivros(user) {
     try {
       const { fs, db } = await carregarFirestore();
       await fs.deleteDoc(fs.doc(db, 'livros', String(id)));
+      // Sem isto a foto ficaria órfã, ocupando espaço para sempre.
+      await apagarFoto(id);
     } catch (e) {
       console.error('Erro ao remover livro:', e);
       alert('Não foi possível remover o livro. Tente novamente.');

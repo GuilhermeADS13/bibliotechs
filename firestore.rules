@@ -8,6 +8,26 @@ service cloud.firestore {
                     && request.resource.data.uid == request.auth.uid;
     }
 
+    // Fotos dos livros, um documento por livro.
+    //
+    // Ficavam dentro do proprio documento do livro, em base64. Como o
+    // `onSnapshot` da estante traz a colecao inteira, cada carregamento baixava
+    // TODAS as fotos — 1,27 MB para 25 livros — inclusive as de livros fora da
+    // tela, e de novo a cada alteracao em qualquer livro. Separadas, a estante
+    // volta a pesar poucos KB e cada foto e buscada so quando aparece.
+    //
+    // O id e o mesmo do livro, mas isso nao autoriza nada por si: o dono vem do
+    // campo `uid`, como em /livros. O teto de 900 KB fica abaixo do limite de
+    // 1 MiB por documento do Firestore, que derrubaria a gravacao inteira.
+    match /fotos/{livroId} {
+      allow read, delete: if request.auth != null
+                          && request.auth.uid == resource.data.uid;
+      allow create, update: if request.auth != null
+                            && request.resource.data.uid == request.auth.uid
+                            && request.resource.data.dados is string
+                            && request.resource.data.dados.size() < 900 * 1024;
+    }
+
     // Conversas com a B.IA, um documento por usuario por dia.
     // O id e "<uid>_<AAAA-MM-DD>": amarrar o id ao uid impede que alguem
     // escreva no documento de outro usuario mesmo acertando o campo uid.

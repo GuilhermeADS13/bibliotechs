@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { auth } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { useLivros } from './hooks/useLivros';
+import { useFotos } from './hooks/useFotos';
 import { Auth } from './components/Auth';
 import { BookForm } from './components/BookForm';
 import { StarRating } from './components/StarRating';
@@ -74,7 +75,15 @@ export default function App() {
   const [editandoMeta, setEditandoMeta] = useState(false);
   const [navMobile, setNavMobile]       = useState(false);
 
-  const { livros, loading, adicionar, atualizar, remover } = useLivros(user);
+  const { livros: livrosSemFoto, loading, adicionar, atualizar, remover } = useLivros(user);
+  // As fotos não vêm mais dentro do livro (ver src/fotos.js). `observar` é o
+  // ref que dispara a busca quando o card chega perto da tela; `mesclar`
+  // devolve `fotoUsuario` preenchido, para o resto do app não mudar.
+  const { observar, mesclar } = useFotos(user);
+  // `useMemo` não é enfeite aqui: a aba de Recomendações tem `livros` nas
+  // dependências de um `useEffect` que busca na Google Books. Um array novo
+  // a cada render dispararia essa busca sem parar.
+  const livros = useMemo(() => mesclar(livrosSemFoto), [mesclar, livrosSemFoto]);
   // O hook vive aqui, não dentro do chat: a aba da B.IA e o widget flutuante
   // precisam enxergar a mesma coisa, e duas instâncias criariam dois listeners
   // com estados que divergem.
@@ -289,10 +298,10 @@ export default function App() {
             {ultimoLido ? (
               <div style={{ background:GRAD_HERO, borderRadius:'20px', padding:'36px', display:'flex', alignItems:'center', gap:'36px', flexWrap:'wrap', boxShadow:'0 12px 40px rgba(107,30,42,0.35)', border:`1px solid ${DA.warmBurgundy}` }}>
                 <div style={{ position:'relative', flexShrink:0 }}>
-                  <img src={ultimoLido.fotoUsuario || ultimoLido.capa || bookPlaceholder(130, 185)} alt={ultimoLido.titulo}
+                  <img ref={observar(ultimoLido)} src={ultimoLido.fotoUsuario || ultimoLido.capa || bookPlaceholder(130, 185)} alt={ultimoLido.titulo}
                     style={{ width:'130px', height:'185px', objectFit:'cover', borderRadius:'10px', boxShadow:'0 8px 24px rgba(131,84,30,0.22)', cursor:'pointer', display:'block' }}
                     onClick={() => { const src = ultimoLido.fotoUsuario || ultimoLido.capa; if (src) setFotoModal({ src, titulo: ultimoLido.titulo }); }} />
-                  {ultimoLido.fotoUsuario && (
+                  {(ultimoLido.fotoUsuario || ultimoLido.temFoto) && (
                     <div style={{ position:'absolute', bottom:'-8px', right:'-8px', background:DA.copper, borderRadius:'50%', width:'26px', height:'26px', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'13px', border:'2px solid white', boxShadow:'0 2px 8px rgba(0,0,0,0.3)' }}>📷</div>
                   )}
                 </div>
@@ -323,7 +332,7 @@ export default function App() {
                 {destaqueSemLeitura && (
                   <div style={{ position:'relative', flexShrink:0, cursor:'pointer' }}
                     onClick={() => { const src = destaqueSemLeitura.fotoUsuario || destaqueSemLeitura.capa; if (src) setFotoModal({ src, titulo: destaqueSemLeitura.titulo }); }}>
-                    <img src={destaqueSemLeitura.fotoUsuario || destaqueSemLeitura.capa || bookPlaceholder(130, 185)} alt={destaqueSemLeitura.titulo}
+                    <img ref={observar(destaqueSemLeitura)} src={destaqueSemLeitura.fotoUsuario || destaqueSemLeitura.capa || bookPlaceholder(130, 185)} alt={destaqueSemLeitura.titulo}
                       style={{ width:'130px', height:'185px', objectFit:'cover', borderRadius:'10px', boxShadow:'0 8px 24px rgba(131,84,30,0.22)', display:'block' }} />
                   </div>
                 )}
@@ -386,9 +395,9 @@ export default function App() {
                     <div key={l.id} style={{ minWidth:'100px', textAlign:'center', cursor:'pointer' }}
                       onClick={() => { const src = l.fotoUsuario || l.capa; if (src) setFotoModal({ src, titulo: l.titulo }); }}>
                       <div style={{ position:'relative', display:'inline-block' }}>
-                        <img src={l.fotoUsuario || l.capa || bookPlaceholder(100, 140)} alt={l.titulo}
+                        <img ref={observar(l)} src={l.fotoUsuario || l.capa || bookPlaceholder(100, 140)} alt={l.titulo}
                           style={{ width:'100px', height:'140px', objectFit:'cover', borderRadius:'8px', boxShadow:'0 6px 16px rgba(44,26,20,0.2)', display:'block' }} />
-                        {l.fotoUsuario && (
+                        {(l.fotoUsuario || l.temFoto) && (
                           <div style={{ position:'absolute', bottom:'-5px', right:'-5px', background:DA.copper, borderRadius:'50%', width:'18px', height:'18px', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'9px', border:'2px solid white' }}>📷</div>
                         )}
                       </div>
@@ -445,7 +454,7 @@ export default function App() {
             ) : (
               <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(280px, 1fr))', gap:'16px' }}>
                 {livrosFiltrados.map(l => (
-                  <BookCard key={l.id} livro={l} DA={DA} GRAD_BTN={GRAD_BTN}
+                  <BookCard key={l.id} livro={l} refFoto={observar(l)} DA={DA} GRAD_BTN={GRAD_BTN}
                     onAtualizar={(d) => atualizarLivro(l.id, d)} onRemover={() => removerLivro(l.id)}
                     onResenha={() => setModalResenha(l)}
                     onFoto={(src) => setFotoModal({ src, titulo: l.titulo })}
@@ -564,9 +573,9 @@ export default function App() {
                     <div key={l.id} style={{ display:'flex', alignItems:'center', gap:'14px', padding:'12px', borderRadius:'12px', background:DA.cream }}>
                       <div style={{ position:'relative', flexShrink:0, cursor:'pointer' }}
                         onClick={() => { const src = l.fotoUsuario||l.capa; if(src) setFotoModal({src,titulo:l.titulo}); }}>
-                        <img src={l.fotoUsuario||l.capa||bookPlaceholder(40, 56)} alt={l.titulo}
+                        <img ref={observar(l)} src={l.fotoUsuario||l.capa||bookPlaceholder(40, 56)} alt={l.titulo}
                           style={{ width:'40px', height:'56px', objectFit:'cover', borderRadius:'5px', display:'block' }} />
-                        {l.fotoUsuario && (
+                        {(l.fotoUsuario || l.temFoto) && (
                           <div style={{ position:'absolute', bottom:'-4px', right:'-4px', background:DA.copper, borderRadius:'50%', width:'14px', height:'14px', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'7px', border:'1px solid white' }}>📷</div>
                         )}
                       </div>
