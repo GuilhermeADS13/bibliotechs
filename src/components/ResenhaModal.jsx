@@ -8,6 +8,19 @@ export function ResenhaModal({ livro, DA, GRAD_BTN, onSalvar, onFechar }) {
   const [nota, setNota]               = useState(livro.nota || 0);
   const [fotoUsuario, setFotoUsuario] = useState(livro.fotoUsuario || null);
   const [abaFoto, setAbaFoto]         = useState(false); // toggle seção de foto
+  // `fotoUsuario` nulo NÃO significa "este livro não tem foto": desde que as
+  // fotos passaram a carregar sob demanda, ela pode ainda não ter chegado
+  // quando o modal abre — e o modal congela o livro no clique, então nem uma
+  // que chegue depois aparece aqui.
+  //
+  // Sem esta marca, salvar a resenha de um livro cuja foto ainda não tinha
+  // carregado mandava `fotoUsuario: null` e APAGAVA a foto do banco. Só quem
+  // mexeu na foto tem direito de alterá-la.
+  const [fotoTrocada, setFotoTrocada] = useState(false);
+
+  const trocarFoto = (nova) => { setFotoUsuario(nova); setFotoTrocada(true); };
+  // `temFoto` vem do documento do livro e responde antes de a imagem chegar.
+  const temFoto = !!fotoUsuario || (!fotoTrocada && !!livro.temFoto);
 
   const imgExibida = livro.fotoUsuario || livro.capa;
   const placeholder = bookPlaceholder(70, 100);
@@ -68,10 +81,10 @@ export function ResenhaModal({ livro, DA, GRAD_BTN, onSalvar, onFechar }) {
           <span style={{ fontSize:'18px' }}>📷</span>
           <div style={{ textAlign:'left', flex:1 }}>
             <p style={{ fontWeight:'800', fontSize:'13px', color: DA.espresso, marginBottom:'1px' }}>
-              {fotoUsuario ? 'Minha foto do livro' : 'Adicionar minha foto'}
+              {temFoto ? 'Minha foto do livro' : 'Adicionar minha foto'}
             </p>
             <p style={{ fontSize:'11px', color: DA.warmBeige }}>
-              {fotoUsuario ? 'Foto salva · clique para alterar' : 'Registre o livro físico que você tem'}
+              {temFoto ? 'Foto salva · clique para alterar' : 'Registre o livro físico que você tem'}
             </p>
           </div>
           {fotoUsuario && (
@@ -83,7 +96,7 @@ export function ResenhaModal({ livro, DA, GRAD_BTN, onSalvar, onFechar }) {
 
         {abaFoto && (
           <div style={{ marginBottom: '22px' }}>
-            <PhotoUpload value={fotoUsuario} onChange={setFotoUsuario} DA={DA} label="Foto do seu exemplar" />
+            <PhotoUpload value={fotoUsuario} onChange={trocarFoto} DA={DA} label="Foto do seu exemplar" />
           </div>
         )}
 
@@ -124,7 +137,9 @@ export function ResenhaModal({ livro, DA, GRAD_BTN, onSalvar, onFechar }) {
             onMouseLeave={e => e.currentTarget.style.borderColor = DA.warmBeige}>
             Cancelar
           </button>
-          <button onClick={() => onSalvar(resenha, nota, fotoUsuario)} style={{
+          {/* `undefined` quando ninguém mexeu na foto: é o que diz a
+              `separarFoto` para não tocar nela. */}
+          <button onClick={() => onSalvar(resenha, nota, fotoTrocada ? fotoUsuario : undefined)} style={{
             flex:1, padding:'13px', borderRadius:'10px', border:'none',
             background: GRAD_BTN, color: DA.cream, fontWeight:'800', cursor:'pointer',
             fontSize:'14px', boxShadow:`0 4px 14px rgba(107,30,42,0.35)`,

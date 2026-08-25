@@ -26,7 +26,17 @@ try {
   app = { isDummy: true };
 }
 
-export const auth     = isFirebaseConfigured ? getAuth(app) : { onAuthStateChanged: (auth, cb) => cb(null) };
+// Quem consome precisa saber: sem configuracao nao ha auth de verdade, e
+// chamar o SDK modular sobre um objeto falso quebra a aplicacao inteira.
+export const firebaseConfigurado = isFirebaseConfigured;
+
+// O dummy tinha `onAuthStateChanged: (auth, cb) => cb(null)`, assinatura de
+// funcao solta. Mas o App usa a forma modular, `onAuthStateChanged(auth, cb)`,
+// que por dentro chama `auth.onAuthStateChanged(callback, ...)` — o callback
+// caia no primeiro parametro, `cb` ficava undefined e estourava. A tela ficava
+// em branco para sempre, porque `authLoading` nunca virava false. Agora quem
+// chama confere `firebaseConfigurado` antes.
+export const auth     = isFirebaseConfigured ? getAuth(app) : { isDummy: true };
 export const provider = isFirebaseConfigured ? new GoogleAuthProvider() : null;
 
 // O Firestore é o maior pedaço do Firebase (~250 KB) e só serve a quem tem

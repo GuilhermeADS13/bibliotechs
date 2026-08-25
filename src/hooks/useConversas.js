@@ -124,7 +124,12 @@ export function useConversas(user) {
       return;
     }
 
-    const assinatura = `${dia}:${limpas.length}`;
+    // A assinatura era so `dia:tamanho`, e tamanho igual nao quer dizer conversa
+    // igual: depois de apagar o dia e conversar de novo, a contagem passa pelos
+    // mesmos numeros e a gravacao era pulada em silencio. O id da ultima
+    // mensagem vem de Date.now(), entao distingue conversas diferentes.
+    const ultima = limpas[limpas.length - 1];
+    const assinatura = `${dia}:${limpas.length}:${ultima?.id ?? 0}`;
     if (ultimoSalvo.current === assinatura) return;
     ultimoSalvo.current = assinatura;
 

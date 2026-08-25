@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { auth } from './firebase';
+import { auth, firebaseConfigurado } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { useLivros } from './hooks/useLivros';
 import { useFotos } from './hooks/useFotos';
@@ -95,6 +95,9 @@ export default function App() {
   } = useConversas(user);
 
   useEffect(() => {
+    // Sem Firebase configurado o app roda em modo local, com localStorage.
+    // Assinar o SDK modular sobre o objeto falso deixava a tela em branco.
+    if (!firebaseConfigurado) { setAuthLoading(false); return undefined; }
     completeRedirectLogin();
     const unsub = onAuthStateChanged(auth, u => { setUser(u); setAuthLoading(false); });
     return () => unsub();

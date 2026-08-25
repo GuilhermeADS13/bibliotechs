@@ -200,22 +200,27 @@ async function repassarStream(resposta, res) {
   const leitor = resposta.body.getReader();
   const decodificador = new TextDecoder();
   let sobra = '';
-  let algumTexto = false;
 
-  while (true) {
-    const { done, value } = await leitor.read();
-    if (done) break;
+  // O try existe porque o primeiro `res.write` ja enviou os cabeçalhos: uma
+  // falha aqui subiria para o catch do handler, que tentaria responder com
+  // status 500 e estouraria ERR_HTTP_HEADERS_SENT — trocando uma queda de rede
+  // por um erro confuso. O que ja chegou ao cliente vale mais que o resto.
+  try {
+    while (true) {
+      const { done, value } = await leitor.read();
+      if (done) break;
 
-    sobra += decodificador.decode(value, { stream: true });
-    const { textos, resto } = consumirEventosSSE(sobra);
-    sobra = resto;
-    for (const pedaco of textos) { res.write(pedaco); algumTexto = true; }
+      sobra += decodificador.decode(value, { stream: true });
+      const { textos, resto } = consumirEventosSSE(sobra);
+      sobra = resto;
+      for (const pedaco of textos) res.write(pedaco);
+    }
+  } catch (e) {
+    console.error('Stream do modelo interrompido:', e?.message);
   }
 
-  // Nada de texto costuma significar bloqueio por filtro de segurança. Como o
-  // status 200 já foi enviado, o aviso vai no corpo e o cliente trata como
-  // falha por resposta vazia.
-  if (!algumTexto) res.write('');
+  // Sem texto nenhum, o corpo vazio é o próprio sinal: o cliente trata como
+  // 'resposta-vazia'. Costuma ser bloqueio por filtro de segurança.
   return res.end();
 }
 
