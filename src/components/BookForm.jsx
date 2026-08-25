@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { StarRating } from './StarRating';
 import { PhotoUpload } from './PhotoUpload';
+import { buscarNaOpenLibrary } from '../openlibrary';
 
 export function BookForm({ onSave, DA, GRAD_BTN }) {
   const [loading, setLoading]         = useState(false);
@@ -17,6 +18,14 @@ export function BookForm({ onSave, DA, GRAD_BTN }) {
   const GOOGLE_BOOKS_KEY = import.meta.env.VITE_GOOGLE_BOOKS_API_KEY || '';
 
   const set = (k, v) => setFormData(p => ({ ...p, [k]: v }));
+
+  // Reserva: usada quando a Google Books não devolve nada ou falha. Se ela
+  // também vier vazia, mostra a mensagem que a chamada original teria dado.
+  const tentarReserva = async (titulo, autor, mensagemSeVazio) => {
+    const reserva = await buscarNaOpenLibrary({ titulo, autor });
+    if (reserva.length > 0) setSugestoes(reserva);
+    else setErro(mensagemSeVazio);
+  };
 
   const buscar = async () => {
     const titulo = formData.titulo.trim();
@@ -48,27 +57,45 @@ export function BookForm({ onSave, DA, GRAD_BTN }) {
       const data  = await res.json();
       const items = data.items || [];
 
-      if (items.length === 0) {
-        setErro('Nenhum livro encontrado. Tente outro título.');
+      if (items.length > 0) {
+        setSugestoes(items.map(item => ({
+          titulo:  item.volumeInfo.title || '',
+          autor:   item.volumeInfo.authors?.join(', ') || 'Desconhecido',
+          genero:  item.volumeInfo.categories?.[0] || '',
+          paginas: item.volumeInfo.pageCount || '',
+          capa:    item.volumeInfo.imageLinks?.thumbnail?.replace(/^http:/, 'https:') || '',
+        })));
         return;
       }
 
-      setSugestoes(items.map(item => ({
-        titulo:  item.volumeInfo.title || '',
-        autor:   item.volumeInfo.authors?.join(', ') || 'Desconhecido',
-        genero:  item.volumeInfo.categories?.[0] || '',
-        paginas: item.volumeInfo.pageCount || '',
-        capa:    item.volumeInfo.imageLinks?.thumbnail?.replace(/^http:/, 'https:') || '',
-      })));
+      // Sem resultado na Google Books, tenta a Open Library. Ver
+      // src/openlibrary.js: ela é reserva, não fonte de igual valor.
+      await tentarReserva(titulo, autor, 'Nenhum livro encontrado. Tente outro título.');
     } catch (e) {
+      // A cota diária da Google Books estourou duas vezes só nos testes de
+      // hoje. Antes disso, a busca simplesmente morria aqui.
       console.error('Google Books search failed', e);
-      setErro(`Erro ao buscar: ${e.message}`);
+      await tentarReserva(titulo, autor, `Erro ao buscar: ${e.message}`);
     } finally {
       setLoading(false);
     }
   };
 
-  const selecionar = (s) => { setFormData(p => ({ ...p, ...s })); setSugestoes([]); setErro(''); };
+  // Copia SO os campos do cadastro. Espalhar a sugestao inteira gravaria no
+  // livro o que e metadado da busca — `fonte` e `ano` da Open Library, por
+  // exemplo, que nao existem no formulario e nao deveriam existir na estante.
+  const selecionar = (s) => {
+    setFormData(p => ({
+      ...p,
+      titulo: s.titulo ?? p.titulo,
+      autor: s.autor === 'Desconhecido' ? '' : (s.autor ?? p.autor),
+      genero: s.genero ?? p.genero,
+      paginas: s.paginas ?? p.paginas,
+      capa: s.capa ?? p.capa,
+    }));
+    setSugestoes([]);
+    setErro('');
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
