@@ -1,97 +1,185 @@
 # 📚 Bibliotech
 
-Gerenciador de leituras pessoal com sincronização em nuvem via Firebase e busca automática via Google Books API.
+Gerenciador de leituras pessoal, com uma agente literária que conversa sobre a sua
+estante — a **B.IA**.
+
+Em produção: **[bibliotechs.vercel.app](https://bibliotechs.vercel.app)**
 
 ## Funcionalidades
 
-- 📖 Organize livros por status: *Lendo*, *Lido*, *Quero Ler*, *Abandonei*
-- 🔍 Busca automática de capa, autor, gênero e páginas via Google Books
-- ☁️ Sincronização em nuvem com Firebase — acesse de qualquer dispositivo
-- 🔐 Login com Google para salvar e restaurar sua estante
-- ⭐ Avaliação por estrelas e resenhas pessoais
-- 📷 Foto do seu exemplar físico (upload com compressão automática)
-- 🎯 Meta anual de leitura com gráfico mensal de progresso
-- 📊 Estatísticas da estante (lidos, lendo, quero ler, abandonados)
-- 📱 Interface responsiva — funciona no mobile e desktop
+### Estante
+
+- 📖 Livros por status: *Lendo*, *Lido*, *Quero Ler*, *Abandonei*
+- 🔍 Busca automática de capa, autor, gênero e páginas na Google Books
+- ☁️ Sincronização via Firestore — a estante acompanha o login
+- 🔐 Entrada com Google
+- ⭐ Nota por estrelas e resenha pessoal
+- 📷 Foto do seu exemplar físico, comprimida no navegador
+- 🎯 Meta anual com gráfico mensal
+- 📊 Estatísticas: ritmo, taxa de conclusão, taxa de abandono, gêneros, autores
+- ✨ Recomendações a partir do que você leu e avaliou
+
+### B.IA — a agente literária
+
+- 💬 Conversa de verdade, com memória dos turnos anteriores
+- 🗓️ Histórico guardado por dia
+- 📚 Responde sobre um livro específico com dados buscados na hora
+- ✍️ Lê suas resenhas e leva em conta o que **você** escreveu
+- 🧭 Indica autores parecidos e explica por quê
+- 🔎 Reconhece autor que você ainda não tem na estante, mesmo digitado em
+  minúscula ou só pelo sobrenome
+
+## Como ela sabe o que sabe
+
+Há uma divisão de responsabilidades que atravessa o projeto inteiro:
+
+> **Fato vem de fonte. Linguagem e juízo vêm do modelo.**
+
+| Origem | Responde por |
+| --- | --- |
+| Código (`src/estatisticas.js`) | todo número da estante — total, médias, taxas, ritmo |
+| Google Books | metadado de edição: autor, editora, ano, páginas, e a existência do título |
+| Wikipédia | quem o autor é: nacionalidade, época, prêmios, filiação literária |
+| Gemini | enredo, estilo, comparação, crítica, opinião — e a escrita |
+
+Um LLM erra uma média ou inventa um livro com facilidade, então nada quantitativo
+e nenhum título são deixados a cargo dele: chegam prontos no contexto. Em
+contrapartida, semelhança entre autores é conhecimento literário estabelecido, e
+ali o modelo é melhor que qualquer API — duas tentativas de fundamentar isso pela
+Google Books deram resultado pior, e estão documentadas em `src/bia.js`.
+
+**A B.IA não navega na web e não tem ferramenta de busca.** As fontes são as duas
+APIs acima. A busca do Google via Gemini existe, mas tem cota zero no plano
+gratuito.
 
 ## Tecnologias
 
-- React 18
-- Vite
-- Tailwind CSS
-- Firebase (Authentication + Firestore)
-- Google Books API
+- React 18 + Vite
+- Firebase — Authentication e Firestore
+- Google AI Studio — Gemini (`gemini-3.5-flash-lite`, trocável por variável)
+- Vercel — hospedagem e função serverless
+- Vitest + Testing Library + MSW — 260 testes
+
+Os estilos são inline e CSS próprio (`src/index.css`); o Tailwind está no
+pipeline mas praticamente não é usado pelos componentes.
+
+## Arquitetura
+
+```text
+src/
+  bia.js              ponte com o modelo: monta contexto, roteia, trata falha
+  estatisticas.js     todo cálculo da estante (números exatos)
+  recomendacoes.js    perfil de leitura + busca de candidatos na Google Books
+  wikipedia.js        contexto biográfico do autor
+  fotos.js            fotos em coleção separada (ver "Fotos" abaixo)
+  hooks/
+    useLivros.js      estante: Firestore com conta, localStorage sem
+    useConversas.js   conversas da B.IA, um documento por usuário por dia
+    useFotos.js       carrega foto só quando o card chega perto da tela
+api/
+  bia.js              função serverless: guarda a chave, fala com o Gemini
+  _auth.js            verifica o token do Firebase (jose + JWKS)
+```
+
+### Por que existe uma função serverless
+
+A chave do Gemini **não pode** ir para o bundle. Variáveis com prefixo `VITE_`
+são embutidas no JavaScript público — qualquer pessoa abriria o DevTools e a
+copiaria. `GEMINI_API_KEY` não tem esse prefixo e só existe no servidor.
+
+O endpoint fica público assim que o site sobe, então exige token do Firebase: a
+cota gratuita é do dono do app, não do mundo.
+
+### Fotos
+
+A foto do exemplar fica em **`fotos/{livroId}`**, não dentro do documento do
+livro. A estante escuta a coleção inteira com `onSnapshot`; com as fotos
+embutidas, cada carregamento baixava todas elas — e de novo a cada alteração em
+qualquer livro.
+
+O lugar natural seria o Firebase Storage, mas criar um bucket exige o plano Blaze
+desde outubro de 2024, e este app é de custo zero por decisão.
+
+Estantes criadas antes dessa mudança migram sozinhas, no navegador de cada
+pessoa, no primeiro acesso. A cópia é gravada e **lida de volta** antes de o
+original ser apagado — este banco não tem backup automático (o Point-in-Time
+Recovery também exige plano pago), então a garantia precisa estar no código.
 
 ## Como rodar localmente
-
-### 1. Clone o repositório
 
 ```bash
 git clone https://github.com/GuilhermeADS13/bibliotechs.git
 cd bibliotechs
-```
-
-### 2. Instale as dependências
-
-```bash
 npm install
 ```
 
-### 3. Configure as variáveis de ambiente
-
-Crie um arquivo `.env` na raiz do projeto com base no `.env.example`:
+Crie um `.env` na raiz, a partir do `.env.example`:
 
 ```env
-VITE_FIREBASE_API_KEY=sua_chave
-VITE_FIREBASE_AUTH_DOMAIN=seu-projeto.firebaseapp.com
-VITE_FIREBASE_PROJECT_ID=seu-projeto
-VITE_FIREBASE_STORAGE_BUCKET=seu-projeto.firebasestorage.app
-VITE_FIREBASE_MESSAGING_SENDER_ID=seu_sender_id
-VITE_FIREBASE_APP_ID=seu_app_id
-VITE_GOOGLE_BOOKS_API_KEY=sua_chave_google_books
+# Cliente — vão para o bundle, restrinja por domínio no console
+VITE_FIREBASE_API_KEY=
+VITE_FIREBASE_AUTH_DOMAIN=
+VITE_FIREBASE_PROJECT_ID=
+VITE_FIREBASE_STORAGE_BUCKET=
+VITE_FIREBASE_MESSAGING_SENDER_ID=
+VITE_FIREBASE_APP_ID=
+VITE_GOOGLE_BOOKS_API_KEY=
+
+# Servidor — SEM prefixo VITE_, nunca chegam ao navegador
+GEMINI_API_KEY=
+FIREBASE_PROJECT_ID=
+BIA_MODEL=gemini-3.5-flash-lite
 ```
 
-> As credenciais do Firebase estão disponíveis em **Firebase Console → Configurações do projeto → Seus aplicativos → Web**.
-
-### 4. Rode o projeto
+> Credenciais do Firebase: **Console → Configurações do projeto → Seus
+> aplicativos → Web**.
+> Chave do Gemini: **[aistudio.google.com/apikey](https://aistudio.google.com/apikey)**.
 
 ```bash
-npm run dev
+npm run dev     # servidor de desenvolvimento
+npm test        # testes
+npm run build   # build de produção
 ```
 
-## Configuração do Firebase
+A B.IA precisa da função serverless, que só existe no ambiente da Vercel. Em
+`npm run dev` o `/api/bia` não responde e o chat cai no motor de regras — que é o
+mesmo caminho usado quando o modelo falha em produção.
 
-### Firestore — Regras de segurança
+## Firebase
 
-No **Firebase Console → Firestore Database → Regras**, configure:
+### Regras do Firestore
 
-```js
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /livros/{livroId} {
-      allow read, write: if request.auth != null
-                         && request.auth.uid == resource.data.uid;
-      allow create: if request.auth != null;
-    }
-  }
-}
-```
-
-Ou faça o deploy direto pelo CLI:
+Estão em [`firestore.rules`](firestore.rules), versionadas — três coleções:
+`livros`, `fotos` e `conversas`. Publique com:
 
 ```bash
 npx firebase-tools@latest deploy --only firestore:rules
 ```
 
+> Elas não são reproduzidas aqui de propósito. Este README já carregou por meses
+> uma cópia desatualizada das regras, e uma cópia divergente é pior que nenhuma.
+
 ### Authentication
 
-No **Firebase Console → Authentication → Sign-in method**, ative o provedor **Google** e adicione seu domínio em **Domínios autorizados**.
+Em **Authentication → Sign-in method**, ative o provedor **Google** e inclua o
+domínio em **Domínios autorizados**.
+
+Um detalhe que já quebrou o login: o `authDomain` precisa ser o mesmo domínio do
+app. Desde que os navegadores passaram a bloquear armazenamento de terceiros, a
+sessão gravada num domínio diferente não pode ser lida de volta — a pessoa voltava
+do Google simplesmente sem estar logada, sem erro nenhum. O `vercel.json` serve
+`/__/auth` pelo próprio domínio, e a URI correspondente precisa estar cadastrada
+no **cliente OAuth**, que é uma lista diferente dos domínios autorizados do
+Firebase.
 
 ## Deploy (Vercel)
 
-Adicione todas as variáveis do `.env` em **Vercel → Settings → Environment Variables** e faça um redeploy.
+Todas as variáveis do `.env` vão em **Settings → Environment Variables**, e
+**variável nova só vale em deploy novo** — salvar sem redeployar não muda nada no
+que está no ar.
 
-## Modo offline
+## Sem login
 
-Sem login, os livros são salvos no `localStorage` do navegador — apenas no dispositivo atual. Faça login com Google para sincronizar em qualquer lugar.
+Sem conta, os livros ficam no `localStorage` — só naquele dispositivo, e a B.IA
+não conversa (o endpoint exige token). Ao entrar com o Google, o que estava local
+é movido para a conta automaticamente.
