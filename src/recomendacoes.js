@@ -113,6 +113,44 @@ function paraLivro(item, motivo) {
   };
 }
 
+// Teto de titulos do mesmo autor numa rodada de recomendacoes.
+const MAX_POR_AUTOR = 2;
+
+/**
+ * Espalha as recomendacoes entre autores diferentes.
+ *
+ * Numa estante com UM livro lido, o genero vinha marcado como "Fiction" — vago
+ * demais, entao descartado — e sobrava so a busca por autor favorito. Resultado
+ * na tela: seis livros do mesmo autor sob o titulo "Recomendado para voce".
+ *
+ * Isso contradiz a propria instrucao que a B.IA carrega, de que recomendar so o
+ * que a pessoa ja aprova reforca o vies. O teto vale na primeira passada; se
+ * faltar candidato para completar a lista, a segunda passada preenche com o que
+ * sobrou — melhor repetir autor do que devolver menos do que cabe.
+ */
+function diversificar(candidatos, limite) {
+  const porAutor = new Map();
+  const escolhidos = [];
+
+  for (const livro of candidatos) {
+    if (escolhidos.length >= limite) break;
+    const chave = normalizar(String(livro.autor || '').split(',')[0]);
+    const quantos = porAutor.get(chave) || 0;
+    if (quantos >= MAX_POR_AUTOR) continue;
+    porAutor.set(chave, quantos + 1);
+    escolhidos.push(livro);
+  }
+
+  if (escolhidos.length < limite) {
+    for (const livro of candidatos) {
+      if (escolhidos.length >= limite) break;
+      if (!escolhidos.includes(livro)) escolhidos.push(livro);
+    }
+  }
+
+  return escolhidos;
+}
+
 /**
  * Gera recomendações a partir do histórico.
  * Estratégia: busca por gênero favorito e por autor favorito, remove o que já
@@ -167,7 +205,7 @@ export async function gerarRecomendacoes(livros, { googleBooksKey = '', limite =
   candidatos.sort((a, b) => (b.ratingMedio || 0) - (a.ratingMedio || 0));
 
   return {
-    recomendacoes: candidatos.slice(0, limite),
+    recomendacoes: diversificar(candidatos, limite),
     perfil,
     motivo: 'ok',
   };

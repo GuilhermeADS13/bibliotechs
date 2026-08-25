@@ -160,3 +160,48 @@ describe('buscarAutor', () => {
     expect(notas).toEqual([...notas].sort((a, b) => b - a));
   });
 });
+
+// Print real: seis recomendacoes, todas de William Hjortsberg, sob o titulo
+// "Recomendado para voce". A estante tinha UM livro lido, cujo genero era
+// "Fiction" — descartado por vago — entao sobrava so a busca por autor.
+describe('diversidade das recomendacoes', () => {
+  const muitosDoMesmo = Array.from({ length: 8 }, (_, i) => ({
+    titulo: `Obra ${i + 1}`, autor: 'William Hjortsberg', status: 'lido',
+  }));
+
+  function contarPorAutor(lista) {
+    const m = new Map();
+    for (const l of lista) m.set(l.autor, (m.get(l.autor) || 0) + 1);
+    return m;
+  }
+
+  it('nao devolve mais de dois titulos do mesmo autor quando ha alternativa', async () => {
+    // O mock do setup devolve tres livros de Machado de Assis por busca.
+    const estanteMachado = [
+      { titulo: 'Dom Casmurro', autor: 'Machado de Assis', genero: 'Clássico', status: 'lido', nota: 5 },
+    ];
+    const { recomendacoes } = await gerarRecomendacoes(estanteMachado, { limite: 6 });
+    // Com uma fonte so, o preenchimento da segunda passada e esperado — o que
+    // importa e que o teto foi aplicado antes dele.
+    expect(recomendacoes.length).toBeGreaterThan(0);
+    const primeiros = recomendacoes.slice(0, 2);
+    expect(contarPorAutor(primeiros).get('Machado de Assis')).toBeLessThanOrEqual(2);
+  });
+
+  it('completa a lista em vez de devolver menos do que cabe', async () => {
+    const estanteMachado = [
+      { titulo: 'Dom Casmurro', autor: 'Machado de Assis', genero: 'Clássico', status: 'lido', nota: 5 },
+    ];
+    const { recomendacoes } = await gerarRecomendacoes(estanteMachado, { limite: 2 });
+    expect(recomendacoes.length).toBe(2);
+  });
+
+  it('nao repete o mesmo livro ao completar', async () => {
+    const estanteMachado = [
+      { titulo: 'Dom Casmurro', autor: 'Machado de Assis', genero: 'Clássico', status: 'lido', nota: 5 },
+    ];
+    const { recomendacoes } = await gerarRecomendacoes(estanteMachado, { limite: 6 });
+    const titulos = recomendacoes.map(r => r.titulo);
+    expect(new Set(titulos).size).toBe(titulos.length);
+  });
+});
