@@ -53,3 +53,32 @@ describe('TextoFormatado', () => {
     expect(() => render(<TextoFormatado texto={null} />)).not.toThrow();
   });
 });
+
+// A B.IA escreve título de livro com um asterisco de cada lado, e no print da
+// leitora aparecia literalmente *"Angel's Inferno"* — asteriscos na tela.
+describe('TextoFormatado: itálico', () => {
+  it('converte *itálico* sem deixar asterisco', () => {
+    const { container } = render(<TextoFormatado texto={`vale a pena *"Angel's Inferno"*, do mesmo autor`} />);
+    expect(container.querySelector('em')).toHaveTextContent(`"Angel's Inferno"`);
+    expect(container.textContent).not.toMatch(/\*/);
+  });
+
+  it('negrito e itálico convivem na mesma linha', () => {
+    const { container } = render(<TextoFormatado texto="li **Duna** e depois *Messias*" />);
+    expect(container.querySelector('strong')).toHaveTextContent('Duna');
+    expect(container.querySelector('em')).toHaveTextContent('Messias');
+    expect(container.textContent).toBe('li Duna e depois Messias');
+  });
+
+  it('não confunde ** com dois itálicos vazios', () => {
+    const { container } = render(<TextoFormatado texto="**Os anos**" />);
+    expect(container.querySelector('strong')).toHaveTextContent('Os anos');
+    expect(container.querySelector('em')).toBeNull();
+  });
+
+  it('multiplicação não vira itálico', () => {
+    // Sem par de fechamento, o asterisco solto fica como está.
+    const { container } = render(<TextoFormatado texto="2 * 3 = 6" />);
+    expect(container.textContent).toBe('2 * 3 = 6');
+  });
+});

@@ -860,3 +860,53 @@ describe('contextoDoAutor com Wikipédia', () => {
     expect(ctx).not.toMatch(/Wikipédia/);
   });
 });
+
+// Print de uma leitora: ela perguntou por Harry Potter e a B.IA respondeu
+// "Harry Potter não vai rolar por aqui", sem falar do livro.
+//
+// A causa não era o modelo. A Google Books CONFIRMA "Harry Potter" como autor —
+// existe um jurista com esse nome, que escreveu "Law, Liberty and the
+// Constitution" — então o contexto mandava falar "DESTE autor" e entregava uma
+// bibliografia de direito constitucional. A Wikipédia é quem desempata.
+describe('contextoDoAutor com nome que não é de autor', () => {
+  const harry = {
+    nome: 'Harry Potter',
+    confirmado: true,
+    obras: [{ titulo: 'Law, Liberty and the Constitution' }, { titulo: 'Hanging in Judgement' }],
+    wikipedia: {
+      titulo: 'Harry Potter',
+      descricao: 'série de livros de ficção escrita por J. K. Rowling',
+      ehEscritor: false,
+      resumo: 'Harry Potter é uma série de sete romances de fantasia.',
+    },
+  };
+
+  it('avisa que o nome não é de um autor e diz o que é', () => {
+    const ctx = contextoDoAutor(harry, []);
+    expect(ctx).toMatch(/NÃO é o nome de um autor/);
+    expect(ctx).toMatch(/série de livros de ficção escrita por J\. K\. Rowling/);
+  });
+
+  it('manda responder sobre a obra citada', () => {
+    expect(contextoDoAutor(harry, [])).toMatch(/Responda sobre ISTO/);
+  });
+
+  // O pior desfecho seria a B.IA falar de direito constitucional achando que é
+  // isso que a pessoa quis saber.
+  it('manda ignorar a bibliografia do homônimo', () => {
+    const ctx = contextoDoAutor(harry, []);
+    expect(ctx).toMatch(/é de outra pessoa de mesmo nome/);
+    expect(ctx).not.toMatch(/Law, Liberty and the Constitution/);
+  });
+
+  it('autor de verdade segue pelo caminho normal', () => {
+    const ctx = contextoDoAutor({
+      nome: 'Annie Ernaux',
+      confirmado: true,
+      obras: [{ titulo: 'Os anos' }],
+      wikipedia: { titulo: 'Annie Ernaux', descricao: 'escritora francesa', ehEscritor: true, resumo: 'x' },
+    }, []);
+    expect(ctx).not.toMatch(/NÃO é o nome de um autor/);
+    expect(ctx).toMatch(/Os anos/);
+  });
+});

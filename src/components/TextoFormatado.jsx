@@ -17,14 +17,35 @@ import React from 'react';
 const TITULO = /^\s{0,3}#{1,6}\s+/;
 const ITEM = /^(\s*)[-*]\s+/;
 
-/** Quebra uma linha em pedaços de texto e <strong>, pelo par de asteriscos. */
-function comNegrito(linha, chave) {
-  const partes = String(linha).split(/\*\*(.+?)\*\*/g);
-  // split com grupo de captura alterna: texto, capturado, texto, capturado...
-  return partes.map((parte, i) =>
-    i % 2 === 1
-      ? <strong key={`${chave}-${i}`}>{parte}</strong>
-      : <React.Fragment key={`${chave}-${i}`}>{parte}</React.Fragment>
+// Negrito e italico numa passada so. O italico entrou depois: a B.IA escreve
+// titulo de livro com um asterisco de cada lado, e no chat aparecia
+// literalmente *"Angel's Inferno"* — com os asteriscos na tela.
+//
+// A ordem importa: o par duplo e testado primeiro, senao "**x**" seria lido
+// como italico vazio seguido de texto.
+const MARCAS = /\*\*(.+?)\*\*|\*(.+?)\*|_(.+?)_/g;
+
+/** Quebra uma linha em texto, <strong> e <em>. */
+function comMarcas(linha, chave) {
+  const texto = String(linha);
+  const saida = [];
+  let ultimo = 0;
+  let m;
+
+  MARCAS.lastIndex = 0;
+  while ((m = MARCAS.exec(texto)) !== null) {
+    if (m.index > ultimo) saida.push(texto.slice(ultimo, m.index));
+    const k = `${chave}-${m.index}`;
+    if (m[1] !== undefined) saida.push(<strong key={k}>{m[1]}</strong>);
+    else saida.push(<em key={k}>{m[2] !== undefined ? m[2] : m[3]}</em>);
+    ultimo = m.index + m[0].length;
+  }
+  if (ultimo < texto.length) saida.push(texto.slice(ultimo));
+
+  return saida.map((parte, i) =>
+    typeof parte === 'string'
+      ? <React.Fragment key={`t${chave}-${i}`}>{parte}</React.Fragment>
+      : parte
   );
 }
 
@@ -43,7 +64,7 @@ export function TextoFormatado({ texto }) {
         if (TITULO.test(linha)) {
           return (
             <React.Fragment key={i}>
-              <strong>{comNegrito(linha.replace(TITULO, ''), i)}</strong>
+              <strong>{comMarcas(linha.replace(TITULO, ''), i)}</strong>
               {fim}
             </React.Fragment>
           );
@@ -53,7 +74,7 @@ export function TextoFormatado({ texto }) {
         if (item) {
           return (
             <React.Fragment key={i}>
-              {item[1]}{'• '}{comNegrito(linha.replace(ITEM, ''), i)}
+              {item[1]}{'• '}{comMarcas(linha.replace(ITEM, ''), i)}
               {fim}
             </React.Fragment>
           );
@@ -61,7 +82,7 @@ export function TextoFormatado({ texto }) {
 
         return (
           <React.Fragment key={i}>
-            {comNegrito(linha, i)}
+            {comMarcas(linha, i)}
             {fim}
           </React.Fragment>
         );

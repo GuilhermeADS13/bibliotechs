@@ -21,9 +21,12 @@ const RESUMO = 'https://pt.wikipedia.org/api/rest_v1/page/summary/';
 // Um resumo de autor cabe em poucas linhas, e o contexto do modelo tem teto.
 const MAX_RESUMO = 600;
 
-// A busca por nome acerta o alvo errado com facilidade: "Torto Arado" devolve a
-// OBRA, "Coração satânico" devolve o FILME, "Machado" devolve a FERRAMENTA DE
-// CORTE. Só passa quem a própria Wikipedia descreve como alguém que escreve.
+// Serve para DUAS coisas. A primeira e obvia: contexto sobre o autor. A segunda
+// apareceu depois — dizer que o nome NAO e de um autor. A Google Books confirma
+// "Harry Potter" como autor (existe um jurista com esse nome, que escreveu sobre
+// direito constitucional), e sem este desempate a B.IA recebia uma bibliografia
+// juridica como se fosse a resposta. A Wikipedia responde na hora: "serie de
+// livros de ficcao escrita por J. K. Rowling".
 const ESCREVE = /escritor|romancista|poet|autor|dramaturg|ensaista|contista|novelista|ficcionista|literat|jornalista|filosof|historiador|cronista|quadrinista/;
 
 const normalizar = (t) => String(t || '')
@@ -72,8 +75,10 @@ export async function contextoWikipedia(nome, { sinal } = {}) {
       return null;
     }
 
-    // Trava 2: tem de ser gente que escreve, não a obra nem o filme homônimo.
-    if (!ESCREVE.test(normalizar(pagina.description))) return null;
+    // Aqui NAO se descarta mais o que nao e escritor. Descobrir que "Harry
+    // Potter" e uma serie, e nao uma pessoa, e a informacao mais valiosa que
+    // esta busca produz — e era exatamente ela que estava sendo jogada fora.
+    const ehEscritor = ESCREVE.test(normalizar(pagina.description));
 
     const resumo = await json(`${RESUMO}${encodeURIComponent(pagina.title)}`, sinal);
     // Página de desambiguação não descreve ninguém — é uma lista de opções.
@@ -85,6 +90,7 @@ export async function contextoWikipedia(nome, { sinal } = {}) {
     return {
       titulo: pagina.title,
       descricao: pagina.description || '',
+      ehEscritor,
       resumo: extrato.length > MAX_RESUMO
         ? `${extrato.slice(0, MAX_RESUMO).trimEnd()}…`
         : extrato,

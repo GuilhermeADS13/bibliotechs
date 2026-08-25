@@ -16,6 +16,9 @@ const PAGINAS = {
 };
 
 const RESUMOS = {
+  'Torto Arado': { type: 'standard', extract: 'Torto Arado e um romance de Itamar Vieira Junior.' },
+  'Angel Heart': { type: 'standard', extract: 'Angel Heart e um filme de 1987.' },
+  Machado: { type: 'standard', extract: 'Machado e uma ferramenta de corte.' },
   'Annie Ernaux': { type: 'standard', extract: 'Annie Ernaux, nascida Annie Duchesne é uma escritora e professora francesa.' },
   'Machado de Assis': { type: 'standard', extract: 'Joaquim Maria Machado de Assis foi um escritor brasileiro.' },
   'Sally Rooney': { type: 'standard', extract: 'Sally Rooney é uma escritora e roteirista irlandesa.' },
@@ -53,12 +56,29 @@ describe('contextoWikipedia', () => {
     expect(await contextoWikipedia('C. J. Tudor')).toBeNull();
   });
 
-  // Trava 2: tem de ser gente que escreve. A busca por nome acerta o alvo
-  // errado com facilidade.
-  it('recusa a obra, o filme e a ferramenta de corte', async () => {
-    expect(await contextoWikipedia('Torto Arado')).toBeNull();
+  // Antes isto devolvia null e a informacao se perdia. Descobrir que o nome NAO
+  // e de um autor e o dado mais valioso que esta busca produz: a Google Books
+  // confirma "Harry Potter" como autor (existe um jurista assim), e sem este
+  // desempate a B.IA recebia bibliografia juridica como resposta.
+  it('marca como nao-escritor em vez de descartar', async () => {
+    const obra = await contextoWikipedia('Torto Arado');
+    expect(obra.ehEscritor).toBe(false);
+    expect(obra.descricao).toMatch(/obra literaria|obra literária/i);
+
+    const ferramenta = await contextoWikipedia('Machado');
+    expect(ferramenta.ehEscritor).toBe(false);
+  });
+
+  // O filme cai na trava do titulo, nao na do escritor: a busca por "Coracao
+  // satanico" devolve a pagina "Angel Heart", que nao contem o nome procurado.
+  // As duas travas se cobrem por caminhos diferentes.
+  it('o titulo divergente barra antes de qualquer analise', async () => {
     expect(await contextoWikipedia('Coracao satanico')).toBeNull();
-    expect(await contextoWikipedia('Machado')).toBeNull();
+  });
+
+  it('marca escritor de verdade como escritor', async () => {
+    expect((await contextoWikipedia('Annie Ernaux')).ehEscritor).toBe(true);
+    expect((await contextoWikipedia('Sally Rooney')).ehEscritor).toBe(true);
   });
 
   it('aceita romancista, não só "escritor"', async () => {

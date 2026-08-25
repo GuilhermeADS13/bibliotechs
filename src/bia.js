@@ -772,6 +772,27 @@ export function contextoDoAutor(autor, livros = []) {
       : 'Ela ainda não tem nenhum livro deste autor na estante.'
   );
 
+  // O nome pode não ser de um autor. A Google Books confirma "Harry Potter"
+  // como autor — existe um jurista com esse nome — e a B.IA recebia uma
+  // bibliografia de direito constitucional como se fosse a resposta. A
+  // Wikipédia desempata: "série de livros de ficção escrita por J. K. Rowling".
+  const homonimo = autor.wikipedia && autor.wikipedia.ehEscritor === false;
+
+  if (homonimo) {
+    linhas.push(
+      '',
+      `ATENÇÃO: "${autor.nome}" NÃO é o nome de um autor. Segundo a Wikipédia,`,
+      `consultada agora, é: ${autor.wikipedia.descricao}.`,
+      autor.wikipedia.resumo,
+      '',
+      'Responda sobre ISTO — a obra, a série ou o personagem que ela citou.',
+      'Se houver uma lista de obras abaixo, ela é de outra pessoa de mesmo nome:',
+      'ignore-a por completo e não a mencione.',
+      '--- FIM ---'
+    );
+    return linhas.join('\n');
+  }
+
   // Quem o autor é — o que a Google Books não sabe responder. Vem antes das
   // obras porque é o que dá sentido a elas.
   if (autor.wikipedia) {
