@@ -7,6 +7,7 @@
 
 import { calcularEstatisticas, MESES_LONGOS } from './estatisticas';
 import { perfilLeitor, buscarAutor } from './recomendacoes';
+import { contextoWikipedia } from './wikipedia';
 
 // `normalizarTexto` é declarado mais abaixo (function declaration, içada).
 
@@ -744,7 +745,13 @@ export async function resolverAutorCitado(pergunta, livros, { googleBooksKey = '
   // limitada e a pergunta não pode esperar três buscas em série.
   for (const nome of candidatos.slice(0, 2)) {
     const achado = await buscarAutor(nome, { googleBooksKey, sinal });
-    if (achado) return { ...achado, confirmado: true };
+    if (!achado) continue;
+    // Em série, e não em paralelo, de propósito: a Wikipedia precisa do nome
+    // CANÔNICO que a Google Books acabou de devolver. "Machado" cai na
+    // ferramenta de corte; "Machado de Assis" cai no escritor. O atraso é de
+    // uma requisição, contra uma resposta que fala do autor errado.
+    const wikipedia = await contextoWikipedia(achado.nome, { sinal });
+    return { ...achado, confirmado: true, wikipedia };
   }
 
   return comMaiuscula.length > 0 ? { nome: candidatos[0], obras: [], confirmado: false } : null;
@@ -764,6 +771,20 @@ export function contextoDoAutor(autor, livros = []) {
       ? `Já na estante dela: ${naEstante.map(l => `"${l.titulo}" [${l.status || 'sem status'}]`).join(', ')}`
       : 'Ela ainda não tem nenhum livro deste autor na estante.'
   );
+
+  // Quem o autor é — o que a Google Books não sabe responder. Vem antes das
+  // obras porque é o que dá sentido a elas.
+  if (autor.wikipedia) {
+    linhas.push(
+      '',
+      `Sobre ${autor.wikipedia.titulo} (Wikipédia, consultada agora): ${autor.wikipedia.descricao}`,
+      autor.wikipedia.resumo,
+      '',
+      'Nacionalidade, época, prêmios e filiação literária saem DAQUI, não da sua',
+      'memória. Use como pano de fundo, não como citação: escreva com suas',
+      'palavras. Se algo que você lembra contradiz este texto, ele tem precedência.'
+    );
+  }
 
   if (autor.confirmado && autor.obras?.length > 0) {
     linhas.push('', 'Obras confirmadas agora na Google Books (títulos reais — pode citar):');

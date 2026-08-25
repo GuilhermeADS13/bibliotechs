@@ -833,3 +833,30 @@ describe('contextoDoAutor: alternativas', () => {
     expect(ctx).toMatch(/--- FIM ---$/);
   });
 });
+
+describe('contextoDoAutor com Wikipédia', () => {
+  const wiki = {
+    titulo: 'Itamar Vieira Junior',
+    descricao: 'escritor brasileiro',
+    resumo: 'autor do romance Torto Arado, ganhador dos prêmios LeYa de 2018 e Jabuti de 2020.',
+  };
+
+  it('inclui quem o autor é, que é o que a Google Books não sabe', () => {
+    const ctx = contextoDoAutor({ nome: 'Itamar Vieira Junior', confirmado: true, obras: [], wikipedia: wiki });
+    expect(ctx).toMatch(/Wikipédia, consultada agora/);
+    expect(ctx).toMatch(/prêmios LeYa de 2018/);
+  });
+
+  // Prêmio e nacionalidade são exatamente o tipo de fato que o modelo inventa
+  // com naturalidade. Tendo a fonte em mãos, ela manda.
+  it('manda tirar prêmio e nacionalidade dali, não da memória', () => {
+    const ctx = contextoDoAutor({ nome: 'Itamar Vieira Junior', confirmado: true, obras: [], wikipedia: wiki });
+    expect(ctx).toMatch(/prêmios e filiação literária saem DAQUI/);
+    expect(ctx).toMatch(/ele tem precedência/);
+  });
+
+  it('sem Wikipédia, nenhuma seção falsa aparece', () => {
+    const ctx = contextoDoAutor({ nome: 'Fulana', confirmado: true, obras: [{ titulo: 'X' }] });
+    expect(ctx).not.toMatch(/Wikipédia/);
+  });
+});
