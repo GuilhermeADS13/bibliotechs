@@ -39,7 +39,14 @@ export async function buscarNaOpenLibrary({ titulo = '', autor = '', limite = 6 
   const timer = setTimeout(() => controle.abort(), TIMEOUT_MS);
 
   try {
-    const res = await fetch(url, { signal: controle.signal });
+    // Nao exige chave, mas corta rajada — seis requisicoes seguidas num teste
+    // deram ECONNRESET. Identificar-se e o que essas APIs publicas pedem de
+    // quem as usa. No navegador `User-Agent` e proibido e simplesmente
+    // ignorado; fora dele, vale.
+    const res = await fetch(url, {
+      signal: controle.signal,
+      headers: { 'User-Agent': 'bibliotech/1.0 (https://bibliotechs.vercel.app)' },
+    });
     if (!res.ok) throw new Error(`Open Library respondeu ${res.status}`);
     const dados = await res.json();
 
