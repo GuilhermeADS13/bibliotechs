@@ -116,10 +116,20 @@ export function useLivros(user) {
     const { id: _ignored, ...data } = livroFinal;
     // A foto vai para /fotos, não para dentro do livro: ver src/fotos.js.
     const { dados, foto } = separarFoto(data);
-    const { fs, db } = await carregarFirestore();
-    const ref = await fs.addDoc(fs.collection(db, 'livros'), { ...dados, uid: user.uid, criadoEm: fs.serverTimestamp() });
-    // Depois do addDoc porque só aqui existe o id — a foto usa o mesmo.
-    if (foto) await salvarFoto(ref.id, foto, user.uid);
+    try {
+      const { fs, db } = await carregarFirestore();
+      const ref = await fs.addDoc(fs.collection(db, 'livros'), { ...dados, uid: user.uid, criadoEm: fs.serverTimestamp() });
+      // Depois do addDoc porque só aqui existe o id — a foto usa o mesmo.
+      if (foto) await salvarFoto(ref.id, foto, user.uid);
+    } catch (e) {
+      // Esta era a única das três operações sem tratamento: a falha virava
+      // promessa rejeitada, a aba não trocava e o formulário aparecia limpo
+      // como se tivesse salvado. O código do erro vai junto porque foi
+      // exatamente ele que faltou para diagnosticar uma falha real.
+      console.error('Erro ao adicionar livro:', e);
+      alert(`Não foi possível salvar o livro.\n\n${e?.code || ''} ${e?.message || e}`.trim());
+      throw e;
+    }
   };
 
   const atualizar = async (id, dados) => {

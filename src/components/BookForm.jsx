@@ -72,7 +72,12 @@ export function BookForm({ onSave, DA, GRAD_BTN }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!formData.titulo.trim()) return;
+    // Antes isto era um `return` mudo: clicar em salvar sem título não
+    // fazia absolutamente nada, e não havia como adivinhar o porquê.
+    if (!formData.titulo.trim()) {
+      setErro('Escreva o título do livro antes de salvar.');
+      return;
+    }
     onSave({ ...formData, nota, fotoUsuario });
     setFormData({ titulo: '', autor: '', genero: '', paginas: '', dataTermino: '', status: 'quero-ler', capa: '', resenha: '' });
     setNota(0);
@@ -204,7 +209,10 @@ export function BookForm({ onSave, DA, GRAD_BTN }) {
         </div>
         <div>
           <Label>Data de término</Label>
-          <input type="date" value={formData.dataTermino} style={{ ...inp, cursor: 'pointer' }}
+          {/* Sem `min`/`max` o campo aceitava ano 131313 — e a data alimenta
+              as estatísticas anuais e o gráfico por mês. */}
+          <input type="date" min="1900-01-01" max="2100-12-31"
+            value={formData.dataTermino} style={{ ...inp, cursor: 'pointer' }}
             onChange={e => set('dataTermino', e.target.value)} onFocus={onFocus} onBlur={onBlur} />
         </div>
       </div>
