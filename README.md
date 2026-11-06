@@ -57,8 +57,12 @@ gratuito.
 - React 18 + Vite
 - Firebase — Authentication e Firestore
 - Google AI Studio — Gemini (`gemini-3.5-flash-lite`, trocável por variável)
+- Reserva opcional para quando a cota do Gemini acaba: qualquer provedor
+  compatível com a OpenAI, como a Groq com `openai/gpt-oss-120b` (mesmo padrão
+  da Luma, do SAS-AtendimentoPsicologico). Variáveis `LLM_FALLBACK_*` no
+  `.env.example`
 - Vercel — hospedagem e função serverless
-- Vitest + Testing Library + MSW — 260 testes
+- Vitest + Testing Library + MSW — 328 testes
 
 Os estilos são inline e CSS próprio (`src/index.css`); o Tailwind está no
 pipeline mas praticamente não é usado pelos componentes.
@@ -70,6 +74,7 @@ src/
   bia.js              ponte com o modelo: monta contexto, roteia, trata falha
   estatisticas.js     todo cálculo da estante (números exatos)
   recomendacoes.js    perfil de leitura + busca de candidatos na Google Books
+                      (Open Library de reserva)
   wikipedia.js        contexto biográfico do autor
   fotos.js            fotos em coleção separada (ver "Fotos" abaixo)
   hooks/
@@ -129,6 +134,10 @@ VITE_GOOGLE_BOOKS_API_KEY=
 GEMINI_API_KEY=
 FIREBASE_PROJECT_ID=
 BIA_MODEL=gemini-3.5-flash-lite
+# Opcional — reserva quando o Gemini estoura a cota (ver .env.example)
+LLM_FALLBACK_1_BASE_URL=
+LLM_FALLBACK_1_MODEL=
+LLM_FALLBACK_1_API_KEY=
 ```
 
 > Credenciais do Firebase: **Console → Configurações do projeto → Seus

@@ -13,7 +13,7 @@ vi.mock('../../api/_auth.js', () => ({
   verificarToken: vi.fn(async () => ({ uid: 'user123' })),
 }));
 
-import handler, { consumirEventosSSE } from '../../api/bia.js';
+import handler, { consumirEventosSSE, provedoresDeReserva } from '../../api/bia.js';
 import { verificarToken } from '../../api/_auth.js';
 
 // Este parser nao tinha teste, e por isso um bug nele passou para producao: o
@@ -370,5 +370,120 @@ describe('handler api/bia', () => {
       expect(res.statusCode).toBe(502);
       expect(res.corpo.erro).toBe('resposta-vazia');
     });
+  });
+});
+
+// Padrão da Luma: quando o Gemini estoura a cota, a resposta sai por um
+// provedor compatível com a OpenAI (Groq, OpenRouter...). Sem reserva
+// configurada, nada muda.
+describe('handler api/bia — reserva no estilo da Luma', () => {
+  const GROQ = 'https://api.groq.com/openai/v1';
+  const geminiFalha = (status) => ({ ok: false, status, text: async () => '' });
+  const reservaOk = (texto) => ({ ok: true, json: async () => ({ choices: [{ message: { content: texto } }] }) });
+
+  function configurar(i, { base = GROQ, modelo = 'openai/gpt-oss-120b', chave = `chave-${i}` } = {}) {
+    process.env[`LLM_FALLBACK_${i}_BASE_URL`] = base;
+    process.env[`LLM_FALLBACK_${i}_MODEL`] = modelo;
+    process.env[`LLM_FALLBACK_${i}_API_KEY`] = chave;
+  }
+
+  beforeEach(() => {
+    process.env.GEMINI_API_KEY = 'chave-de-teste';
+    verificarToken.mockResolvedValue({ uid: 'user123' });
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+    for (const k of Object.keys(process.env)) if (k.startsWith('LLM_FALLBACK_')) delete process.env[k];
+  });
+
+  it('Gemini em 429: responde pela reserva, com a mesma conversa', async () => {
+    configurar(1);
+    const espiao = vi.fn()
+      .mockResolvedValueOnce(geminiFalha(429))
+      .mockResolvedValueOnce(reservaOk('Resposta da reserva.'));
+    vi.stubGlobal('fetch', espiao);
+
+    const res = criarRes();
+    await handler(req({ pergunta: 'e aí?', contexto: 'Lidos: 3' }), res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.corpo).toEqual({ texto: 'Resposta da reserva.', modelo: 'openai/gpt-oss-120b' });
+
+    const [url, opcoes] = espiao.mock.calls[1];
+    expect(url).toBe(`${GROQ}/chat/completions`);
+    expect(opcoes.headers.Authorization).toBe('Bearer chave-1');
+    const corpo = JSON.parse(opcoes.body);
+    expect(corpo.model).toBe('openai/gpt-oss-120b');
+    expect(corpo.messages.map(m => m.role)).toEqual(['user', 'assistant', 'user']);
+    expect(corpo.messages.at(-1).content).toBe('e aí?');
+  });
+
+  it('passa para a segunda reserva quando a primeira também falha', async () => {
+    configurar(1);
+    configurar(2, { chave: 'chave-2' });
+    vi.stubGlobal('fetch', vi.fn()
+      .mockResolvedValueOnce(geminiFalha(503))
+      .mockResolvedValueOnce({ ok: false, status: 429 })
+      .mockResolvedValueOnce(reservaOk('Da segunda.')));
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const res = criarRes();
+    await handler(req({ pergunta: 'oi', contexto: 'x' }), res);
+    expect(res.corpo.texto).toBe('Da segunda.');
+  });
+
+  it('todas as reservas falhando: mantém o erro original do Gemini', async () => {
+    configurar(1);
+    vi.stubGlobal('fetch', vi.fn()
+      .mockResolvedValueOnce(geminiFalha(429))
+      .mockResolvedValueOnce({ ok: false, status: 429 }));
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const res = criarRes();
+    await handler(req({ pergunta: 'oi', contexto: 'x' }), res);
+    expect(res.statusCode).toBe(502);
+    expect(res.corpo.erro).toBe('cota-esgotada');
+  });
+
+  it('erro de chave (403) não aciona a reserva', async () => {
+    configurar(1);
+    const espiao = vi.fn().mockResolvedValueOnce(geminiFalha(403));
+    vi.stubGlobal('fetch', espiao);
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const res = criarRes();
+    await handler(req({ pergunta: 'oi', contexto: 'x' }), res);
+    expect(res.corpo.erro).toBe('falha-upstream');
+    expect(espiao).toHaveBeenCalledTimes(1);
+  });
+
+  it('no modo stream, entrega o texto da reserva como texto puro', async () => {
+    configurar(1);
+    vi.stubGlobal('fetch', vi.fn()
+      .mockResolvedValueOnce(geminiFalha(429))
+      .mockResolvedValueOnce(reservaOk('Texto inteiro.')));
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const escrito = [];
+    const res = { ...criarRes(), cabecalhos: {}, setHeader(k, v) { this.cabecalhos[k] = v; }, write(t) { escrito.push(t); }, end() { this.fim = true; return this; } };
+    await handler({ method: 'POST', body: { pergunta: 'oi', contexto: 'x' }, query: { stream: '1' } }, res);
+
+    expect(escrito.join('')).toBe('Texto inteiro.');
+    expect(res.cabecalhos['Content-Type']).toMatch(/text\/plain/);
+    expect(res.fim).toBe(true);
+  });
+
+  it('trio incompleto é ignorado com aviso, sem imprimir a chave', () => {
+    const aviso = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const lista = provedoresDeReserva({
+      LLM_FALLBACK_1_BASE_URL: `${GROQ}/ `,
+      LLM_FALLBACK_1_MODEL: 'openai/gpt-oss-120b\r',
+      LLM_FALLBACK_1_API_KEY: 'segredo',
+      LLM_FALLBACK_2_API_KEY: 'segredo-2',
+    });
+    expect(lista).toEqual([{ baseUrl: GROQ, apiKey: 'segredo', modelo: 'openai/gpt-oss-120b' }]);
+    expect(aviso).toHaveBeenCalledTimes(1);
+    expect(aviso.mock.calls[0].join(' ')).not.toContain('segredo');
   });
 });

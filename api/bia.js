@@ -99,6 +99,13 @@ export default async function handler(req, res) {
     if (!resposta.ok) {
       const detalhe = await resposta.text().catch(() => '');
       console.error('AI Studio respondeu', resposta.status, detalhe.slice(0, 500));
+      // Cota estourada ou Google fora do ar: outro provedor pode atender. Um
+      // 400/401/403 é problema da requisição ou da chave e se repetiria em
+      // qualquer lugar — aí não adianta tentar a reserva.
+      if (resposta.status === 429 || resposta.status >= 500) {
+        const reserva = await chamarReserva(contents);
+        if (reserva) return entregar(res, reserva, querStream);
+      }
       // 429 = cota diária do tier gratuito esgotada. O front trata como
       // qualquer outra falha e usa as regras locais.
       return res.status(502).json({
@@ -130,6 +137,92 @@ export default async function handler(req, res) {
   } finally {
     clearTimeout(timer);
   }
+}
+
+// --- RESERVA: provedores compatíveis com a API da OpenAI ----------------------
+//
+// Mesmo padrão da Luma (SAS-AtendimentoPsicologico, server/ai/llm.ts): quando o
+// provedor principal estoura a cota, a resposta sai pelo próximo da lista, que
+// tem cota própria. Lá a cadeia é de contas Groq com `openai/gpt-oss-120b`;
+// aqui o Gemini continua principal e a cadeia só entra quando ele falha.
+//
+// Configuração por trio numerado, no painel da Vercel (sem prefixo VITE_):
+//   LLM_FALLBACK_1_BASE_URL=https://api.groq.com/openai/v1
+//   LLM_FALLBACK_1_MODEL=openai/gpt-oss-120b
+//   LLM_FALLBACK_1_API_KEY=...   (segredo)
+// Sem nenhum trio configurado, o comportamento é exatamente o de antes.
+
+const MAX_RESERVAS = 3;
+const TIMEOUT_RESERVA_MS = 15000;
+
+export function provedoresDeReserva(env = process.env) {
+  const lista = [];
+  for (let i = 1; i <= MAX_RESERVAS; i++) {
+    // trim: valor colado no painel com espaço ou \r no fim vira 404 "model does
+    // not exist" — já aconteceu com a Luma.
+    const valor = (nome) => env[`LLM_FALLBACK_${i}_${nome}`]?.trim();
+    const baseUrl = valor('BASE_URL');
+    const apiKey = valor('API_KEY');
+    const modelo = valor('MODEL');
+    if (baseUrl && apiKey && modelo) {
+      lista.push({ baseUrl: baseUrl.replace(/\/+$/, ''), apiKey, modelo });
+    } else if (baseUrl || apiKey || modelo) {
+      // Trio pela metade era descartado em silêncio na Luma, parecendo ligado.
+      // Nunca imprime a chave — só o número do trio.
+      console.warn(`LLM_FALLBACK_${i} ignorado: falta BASE_URL, API_KEY ou MODEL`);
+    }
+  }
+  return lista;
+}
+
+/** Tenta cada reserva em ordem. Devolve { texto, modelo } ou null. */
+async function chamarReserva(contents) {
+  const provedores = provedoresDeReserva();
+  if (provedores.length === 0) return null;
+
+  // Mesma conversa, no formato de chat da OpenAI: "model" vira "assistant".
+  const messages = contents.map(c => ({
+    role: c.role === 'model' ? 'assistant' : 'user',
+    content: (c.parts || []).map(p => p?.text || '').join(''),
+  }));
+
+  for (const p of provedores) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), TIMEOUT_RESERVA_MS);
+    try {
+      const resposta = await fetch(`${p.baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${p.apiKey}` },
+        signal: controller.signal,
+        body: JSON.stringify({ model: p.modelo, messages, temperature: 0.7, max_tokens: 2048 }),
+      });
+      if (!resposta.ok) {
+        console.error('Reserva', p.modelo, 'respondeu', resposta.status);
+        continue;
+      }
+      const dados = await resposta.json();
+      const texto = String(dados?.choices?.[0]?.message?.content || '').trim();
+      if (texto) return { texto, modelo: p.modelo };
+    } catch (e) {
+      console.error('Reserva', p.modelo, 'falhou:', e?.message);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  return null;
+}
+
+/**
+ * Entrega a resposta da reserva no formato que o cliente pediu. A reserva não
+ * faz streaming: no modo stream, o texto inteiro sai num pedaço só — o cliente
+ * lê do mesmo jeito.
+ */
+function entregar(res, { texto, modelo }, querStream) {
+  if (!querStream) return res.status(200).json({ texto, modelo });
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.write(texto);
+  return res.end();
 }
 
 /**
