@@ -88,16 +88,17 @@ describe('6. Importar estante', () => {
   it('arquivo sem coluna de título é recusado com explicação', async () => {
     render(<ImportarEstante livros={[]} DA={DA} GRAD_BTN="" onImportar={vi.fn()} onConcluir={() => {}} />);
     fireEvent.click(screen.getByText('Importar arquivo'));
-    fireEvent.change(screen.getByLabelText('Arquivo CSV'), { target: { files: [arquivo('nome,idade\nAna,3')] } });
+    fireEvent.change(screen.getByLabelText('Arquivo CSV'), { target: { files: [arquivo('pessoa,idade\nAna,3')] } });
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/coluna de título/));
   });
 });
 
 describe('7. Código de barras', () => {
-  it('sem leitor no navegador, explica e aceita o número digitado', () => {
+  it('sem câmera, explica e aceita foto ou o número digitado', async () => {
     const onLido = vi.fn();
     render(<LeitorCodigo DA={DA} onLido={onLido} onFechar={() => {}} />);
-    expect(screen.getByText(/não lê código de barras pela câmera/)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/Não consegui abrir a câmera/)).toBeInTheDocument(), { timeout: 5000 });
+    expect(screen.getByLabelText('Foto do código de barras')).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('ISBN'), { target: { value: '978-0-441-01359-3' } });
     fireEvent.click(screen.getByText('Buscar'));
     expect(onLido).toHaveBeenCalledWith('9780441013593');

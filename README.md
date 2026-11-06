@@ -24,8 +24,8 @@ Em produção: **[bibliotechs.vercel.app](https://bibliotechs.vercel.app)**
 - 🗓️ Data de início: quanto tempo cada livro levou, e a média
 - ❝ Trechos favoritos, com a página
 - 📚 Séries e volumes
-- 📥 Importação do Goodreads ou de planilha própria (CSV)
-- 🏷️ Cadastro pelo código de barras (câmera no Chrome do Android) ou pelo ISBN
+- 📥 Importação do Notion (.zip ou CSV), do Goodreads ou de planilha própria
+- 🏷️ Cadastro pelo código de barras (câmera ou foto, em qualquer navegador) ou pelo ISBN
   digitado
 - 🖼️ Porta-retrato no Início com as fotos inteiras; no fundo, só a cor delas
 
@@ -75,7 +75,7 @@ gratuito.
   da Luma, do SAS-AtendimentoPsicologico). Variáveis `LLM_FALLBACK_*` no
   `.env.example`
 - Vercel — hospedagem e função serverless
-- Vitest + Testing Library + MSW — 408 testes
+- Vitest + Testing Library + MSW — 420 testes
 
 Os estilos são inline e CSS próprio (`src/index.css`); o Tailwind está no
 pipeline mas praticamente não é usado pelos componentes.

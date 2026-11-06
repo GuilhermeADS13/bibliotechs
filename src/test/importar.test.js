@@ -64,7 +64,8 @@ describe('livrosDoCsv — planilha própria', () => {
   });
 
   it('sem coluna de título, não reconhece o arquivo', () => {
-    expect(livrosDoCsv('nome,idade\nAna,30').formato).toBeNull();
+    // "nome" não serve de exemplo: é a coluna de título do Notion em português.
+    expect(livrosDoCsv('pessoa,idade\nAna,30').formato).toBeNull();
   });
 
   it('linha sem título é ignorada e contada', () => {

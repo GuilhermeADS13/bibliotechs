@@ -51,20 +51,33 @@ export function lerCsv(texto) {
 
 const sem = (t) => String(t || '').normalize('NFD').replace(/\p{Mn}/gu, '').toLowerCase().trim();
 
-// Cabeçalho normalizado → campo do livro. Goodreads e planilha própria juntos.
+// Cabeçalho normalizado → campo do livro. Goodreads, Notion e planilha própria
+// juntos. No Notion cada pessoa batiza as colunas do seu jeito, em inglês ou
+// português — daí a lista longa de sinônimos. A coluna de título padrão de um
+// banco do Notion se chama "Name".
 const COLUNAS = {
-  title: 'titulo', titulo: 'titulo', livro: 'titulo',
-  author: 'autor', autor: 'autor', autora: 'autor',
-  'my rating': 'nota', nota: 'nota', avaliacao: 'nota',
-  'exclusive shelf': 'estante', status: 'status', situacao: 'status',
+  title: 'titulo', titulo: 'titulo', livro: 'titulo', name: 'titulo', nome: 'titulo', book: 'titulo', 'book title': 'titulo',
+  author: 'autor', authors: 'autor', autor: 'autor', autora: 'autor', autores: 'autor', escritor: 'autor', escritora: 'autor',
+  'my rating': 'nota', rating: 'nota', score: 'nota', stars: 'nota', estrelas: 'nota', nota: 'nota', avaliacao: 'nota', 'minha nota': 'nota',
+  'exclusive shelf': 'estante', status: 'status', situacao: 'status', estado: 'status', 'reading status': 'status', state: 'status',
   bookshelves: 'prateleiras',
-  'number of pages': 'paginas', paginas: 'paginas', 'n de paginas': 'paginas',
-  'date read': 'dataTermino', 'data de termino': 'dataTermino', 'data termino': 'dataTermino', termino: 'dataTermino', 'lido em': 'dataTermino',
-  'date started': 'dataInicio', 'data de inicio': 'dataInicio', 'data inicio': 'dataInicio', inicio: 'dataInicio',
-  'my review': 'resenha', resenha: 'resenha',
-  genero: 'genero', categoria: 'genero',
-  serie: 'serie', colecao: 'serie', volume: 'volume',
+  'number of pages': 'paginas', pages: 'paginas', 'page count': 'paginas', paginas: 'paginas', 'n de paginas': 'paginas', 'numero de paginas': 'paginas',
+  'date read': 'dataTermino', finished: 'dataTermino', 'date finished': 'dataTermino', 'finish date': 'dataTermino', 'end date': 'dataTermino',
+  completed: 'dataTermino', 'date completed': 'dataTermino', 'read on': 'dataTermino',
+  'data de termino': 'dataTermino', 'data termino': 'dataTermino', termino: 'dataTermino', 'lido em': 'dataTermino',
+  terminei: 'dataTermino', 'terminei em': 'dataTermino', 'concluido em': 'dataTermino', 'data de conclusao': 'dataTermino', 'data fim': 'dataTermino', fim: 'dataTermino',
+  'date started': 'dataInicio', started: 'dataInicio', 'start date': 'dataInicio',
+  'data de inicio': 'dataInicio', 'data inicio': 'dataInicio', inicio: 'dataInicio', comecei: 'dataInicio', 'comecei em': 'dataInicio',
+  dates: 'periodo', 'reading dates': 'periodo', periodo: 'periodo', datas: 'periodo', 'periodo de leitura': 'periodo',
+  'my review': 'resenha', review: 'resenha', notes: 'resenha', resenha: 'resenha', notas: 'resenha', comentario: 'resenha', comentarios: 'resenha', opiniao: 'resenha',
+  genre: 'genero', genres: 'genero', category: 'genero', categories: 'genero', tags: 'genero',
+  genero: 'genero', generos: 'genero', categoria: 'genero',
+  series: 'serie', serie: 'serie', colecao: 'serie', saga: 'serie',
+  volume: 'volume', 'book number': 'volume', 'number in series': 'volume', 'n na serie': 'volume',
 };
+
+// Cabeçalho do Notion pode vir com emoji ("📚 Name"): só letras e números contam.
+const nomeColuna = (h) => sem(h).replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
 
 const ESTANTE_GOODREADS = { read: 'lido', 'currently-reading': 'lendo', 'to-read': 'quero-ler' };
 
@@ -72,21 +85,56 @@ function statusDe(valor, prateleiras) {
   // No Goodreads, "abandonado" é prateleira criada pela pessoa, com nomes
   // variados; a estante exclusiva fica em "to-read" ou "read".
   if (/(^|[\s,])(dnf|did-not-finish|abandon)/i.test(prateleiras || '')) return 'abandonei';
-  const v = sem(valor);
+  // Opção de status do Notion pode trazer emoji ("📖 Lendo"): fica só o texto.
+  const v = sem(valor).replace(/[^a-z\s-]/g, '').replace(/\s+/g, ' ').trim();
   if (ESTANTE_GOODREADS[v]) return ESTANTE_GOODREADS[v];
-  if (/^(lido|lida|read|concluido|terminado)$/.test(v)) return 'lido';
-  if (/^(lendo|reading|em leitura)$/.test(v)) return 'lendo';
-  if (/^(abandonei|abandonado|abandonada|dnf)$/.test(v)) return 'abandonei';
+  if (/^(lido|lida|lidos|read|done|finished|completed|complete|concluido|concluida|terminado|terminei)$/.test(v)) return 'lido';
+  if (/^(lendo|lendo agora|reading|currently reading|in progress|em andamento|em leitura|comecei|started)$/.test(v)) return 'lendo';
+  if (/^(abandonei|abandonado|abandonada|abandoned|dropped|dnf|desisti|parei|gave up)$/.test(v)) return 'abandonei';
   return 'quero-ler';
 }
 
-// "2024/03/15" (Goodreads), "15/03/2024" (planilha brasileira) ou ISO.
+/**
+ * Nota de 0 a 5. Aceita número ("4", "4,5", "4/5", "8/10") e estrelas — o
+ * jeito mais comum de dar nota numa tabela do Notion ("⭐⭐⭐⭐", "★★★☆☆").
+ */
+export function notaDe(valor) {
+  const v = String(valor || '');
+  const estrelas = (v.match(/⭐|★/g) || []).length;
+  if (estrelas > 0) return Math.min(5, estrelas);
+  const m = /(\d+(?:[.,]\d+)?)(?:\s*\/\s*(\d+))?/.exec(v);
+  if (!m) return 0;
+  let n = Number(m[1].replace(',', '.'));
+  if (m[2] && Number(m[2]) === 10) n /= 2;
+  return Math.min(5, Math.max(0, Math.round(n)));
+}
+
+const MESES = {
+  jan: 1, fev: 2, feb: 2, mar: 3, abr: 4, apr: 4, mai: 5, may: 5, jun: 6, jul: 7,
+  ago: 8, aug: 8, set: 9, sep: 9, out: 10, oct: 10, nov: 11, dez: 12, dec: 12,
+};
+const iso = (a, m, d) => (m >= 1 && m <= 12 && d >= 1 && d <= 31
+  ? `${a}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}` : '');
+
+/**
+ * "2024/03/15" (Goodreads), "15/03/2024" (planilha), ISO, e as datas por
+ * extenso que o Notion exporta: "March 15, 2024", "15 de março de 2024".
+ */
 export function dataDe(valor) {
-  const v = String(valor || '').trim();
+  const v = sem(valor);
   let m = /^(\d{4})[/-](\d{1,2})[/-](\d{1,2})/.exec(v);
-  if (m) return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
-  m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(v);
-  if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+  if (m) return iso(m[1], +m[2], +m[3]);
+  m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(v);
+  if (m) {
+    // Dia primeiro, como no Brasil — a não ser que o segundo número só possa
+    // ser dia (Notion configurado em formato americano: 03/15/2024).
+    const [a, b] = [+m[1], +m[2]];
+    return b > 12 ? iso(m[3], a, b) : iso(m[3], b, a);
+  }
+  m = /^([a-z]{3})[a-z]*\.? (\d{1,2}),? (\d{4})/.exec(v);
+  if (m && MESES[m[1]]) return iso(m[3], MESES[m[1]], +m[2]);
+  m = /^(\d{1,2}) (?:de )?([a-z]{3})[a-z]*\.?,? (?:de )?(\d{4})/.exec(v);
+  if (m && MESES[m[2]]) return iso(m[3], MESES[m[2]], +m[1]);
   return '';
 }
 
@@ -103,9 +151,17 @@ export function livrosDoCsv(texto, estanteAtual = []) {
   const linhas = lerCsv(texto);
   if (linhas.length < 2) return { livros: [], repetidos: 0, ignorados: 0, formato: null };
 
-  const cabecalho = linhas[0].map(h => COLUNAS[sem(h).replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ')] || null);
+  const nomes = linhas[0].map(nomeColuna);
+  // Primeira coluna reconhecida vence: no Notion pode haver "Name" e "Title".
+  const usados = new Set();
+  const cabecalho = nomes.map(n => {
+    const campo = COLUNAS[n];
+    if (!campo || usados.has(campo)) return null;
+    usados.add(campo);
+    return campo;
+  });
   if (!cabecalho.includes('titulo')) return { livros: [], repetidos: 0, ignorados: 0, formato: null };
-  const formato = cabecalho.includes('estante') ? 'goodreads' : 'planilha';
+  const formato = cabecalho.includes('estante') ? 'goodreads' : nomes.includes('name') ? 'notion' : 'planilha';
 
   const naEstante = new Set((estanteAtual || []).map(l => chaveTitulo(l?.titulo)).filter(Boolean));
   const livros = [];
@@ -123,16 +179,19 @@ export function livrosDoCsv(texto, estanteAtual = []) {
     naEstante.add(chave);
 
     const status = statusDe(bruto.estante || bruto.status, bruto.prateleiras);
-    const nota = Math.min(5, Math.max(0, Math.round(Number(String(bruto.nota || '').replace(',', '.')) || 0)));
+    // Período do Notion: "March 1, 2024 → March 15, 2024" numa coluna só.
+    const [periodoInicio, periodoFim] = String(bruto.periodo || '').split('→').map(s => s.trim());
+    const fim = dataDe(bruto.dataTermino) || (periodoFim ? dataDe(periodoFim) : '');
     const livro = {
       titulo,
+      // Notion separa múltiplos valores com vírgula — o mesmo formato do app.
       autor: bruto.autor || '',
-      genero: bruto.genero || '',
+      genero: String(bruto.genero || '').split(',')[0].trim(),
       paginas: Number.parseInt(bruto.paginas, 10) > 0 ? String(Number.parseInt(bruto.paginas, 10)) : '',
       status,
-      nota,
-      dataTermino: status === 'lido' ? dataDe(bruto.dataTermino) : '',
-      dataInicio: dataDe(bruto.dataInicio),
+      nota: notaDe(bruto.nota),
+      dataTermino: status === 'lido' ? fim : '',
+      dataInicio: dataDe(bruto.dataInicio) || dataDe(periodoInicio),
       resenha: limparTexto(bruto.resenha),
       capa: '',
     };

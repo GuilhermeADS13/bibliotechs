@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { livrosDoCsv } from '../importar';
+import { csvDoZip } from '../zip';
 
 const ROTULO_STATUS = { lido: 'lidos', lendo: 'lendo', 'quero-ler': 'quero ler', abandonei: 'abandonados' };
 
@@ -20,10 +21,24 @@ export function ImportarEstante({ livros, DA, GRAD_BTN, onImportar, onConcluir }
   const lerArquivo = async (arquivo) => {
     setErro(''); setPrevia(null); setConcluido(null);
     if (!arquivo) return;
-    const texto = await arquivo.text();
+    let texto;
+    if (/\.zip$/i.test(arquivo.name)) {
+      // O Notion exporta o banco de dados como .zip com o CSV dentro.
+      try {
+        texto = await csvDoZip(await arquivo.arrayBuffer());
+      } catch {
+        texto = null;
+      }
+      if (!texto) {
+        setErro('Não achei nenhum CSV dentro desse .zip. No Notion, exporte o banco de dados no formato "Markdown e CSV".');
+        return;
+      }
+    } else {
+      texto = await arquivo.text();
+    }
     const r = livrosDoCsv(texto, livros);
     if (!r.formato) {
-      setErro('Não reconheci este arquivo. Ele precisa ser um CSV com uma coluna de título ("Title" no Goodreads, "titulo" numa planilha).');
+      setErro('Não reconheci este arquivo. Ele precisa ter uma coluna de título ("Title" no Goodreads, "Name" no Notion, "titulo" numa planilha).');
       return;
     }
     if (r.livros.length === 0) {
@@ -65,7 +80,7 @@ export function ImportarEstante({ livros, DA, GRAD_BTN, onImportar, onConcluir }
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
         <div>
           <h3 style={{ fontSize: '16px', color: DA.espresso, marginBottom: '3px' }}>Trazer sua estante de outro lugar</h3>
-          <p style={{ fontSize: '12px', color: DA.walnut }}>Arquivo CSV do Goodreads ou de uma planilha sua</p>
+          <p style={{ fontSize: '12px', color: DA.walnut }}>Do Notion, do Goodreads ou de uma planilha sua</p>
         </div>
         <button type="button" onClick={() => setAberto(v => !v)} aria-expanded={aberto} style={{
           fontSize: '12px', fontWeight: '700', color: DA.oxblood, background: 'none',
@@ -78,13 +93,16 @@ export function ImportarEstante({ livros, DA, GRAD_BTN, onImportar, onConcluir }
       {aberto && (
         <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '13px', color: DA.espresso }}>
           <p style={{ lineHeight: 1.55, color: DA.walnut }}>
+            <strong>Notion:</strong> no banco de dados dos seus livros, menu ••• → Exportar → formato “Markdown e CSV”. Pode enviar o .zip que ele gera, do jeito que veio.<br />
             <strong>Goodreads:</strong> My Books → Import and export → Export Library.<br />
             <strong>Planilha:</strong> salve como CSV com as colunas <em>titulo, autor, status, nota, paginas, genero, data de termino</em> (só <em>titulo</em> é obrigatória).
-            Status aceita lido, lendo, quero ler ou abandonei.
+          </p>
+          <p style={{ lineHeight: 1.55, color: DA.walnut, fontSize: '12px' }}>
+            Os nomes das colunas podem estar em português ou inglês (Name, Author, Status, Rating…). Nota em estrelas (⭐⭐⭐⭐) também vale.
           </p>
 
           {!progresso && (
-            <input type="file" accept=".csv,text/csv" aria-label="Arquivo CSV"
+            <input type="file" accept=".csv,.zip,text/csv,application/zip" aria-label="Arquivo CSV"
               onChange={e => lerArquivo(e.target.files?.[0])}
               style={{ fontSize: '13px' }} />
           )}
@@ -97,7 +115,7 @@ export function ImportarEstante({ livros, DA, GRAD_BTN, onImportar, onConcluir }
             <div style={{ padding: '14px', background: DA.cream, borderRadius: '12px', border: `1px solid ${DA.warmBeige}` }}>
               <p style={{ fontWeight: '800', marginBottom: '6px' }}>
                 {previa.livros.length} livro{previa.livros.length > 1 ? 's' : ''} para importar
-                {previa.formato === 'goodreads' ? ' do Goodreads' : ''}
+                {previa.formato === 'goodreads' ? ' do Goodreads' : previa.formato === 'notion' ? ' do Notion' : ''}
               </p>
               <p style={{ color: DA.walnut, marginBottom: '6px' }}>
                 {porStatus.map(([s, n]) => `${n} ${ROTULO_STATUS[s] || s}`).join(', ')}
