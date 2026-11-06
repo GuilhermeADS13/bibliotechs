@@ -46,7 +46,7 @@ export function BackgroundCarousel() {
   return (
     <>
       {/* Camada A */}
-      <div style={{
+      <div className="fundo-foto" style={{
         ...layerBase,
         backgroundImage: `url(${slots[0]})`,
         opacity: activeSlot === 0 ? 1 : 0,
@@ -55,12 +55,24 @@ export function BackgroundCarousel() {
       }} />
 
       {/* Camada B */}
-      <div style={{
+      <div className="fundo-foto" style={{
         ...layerBase,
         backgroundImage: `url(${slots[1]})`,
         opacity: activeSlot === 1 ? 1 : 0,
         transition: `opacity ${FADE}ms cubic-bezier(0.45, 0, 0.55, 1)`,
         animation: `kb-b ${DISPLAY + FADE}ms ease-in-out infinite`,
+      }} />
+
+      {/* Véu da coluna de conteúdo: escurece e desfoca só onde ficam os
+          painéis (1100px no centro), para o texto ler melhor. As bordas da
+          tela seguem com as fotos nítidas — a máscara é que faz a transição. */}
+      <div aria-hidden="true" className="veu-conteudo" style={{
+        position: 'fixed', inset: 0, zIndex: -1, pointerEvents: 'none',
+        background: 'rgba(30,18,12,0.42)',
+        backdropFilter: 'blur(7px) saturate(0.9)',
+        WebkitBackdropFilter: 'blur(7px) saturate(0.9)',
+        maskImage: 'linear-gradient(90deg, transparent 0, #000 calc(50% - 520px), #000 calc(50% + 520px), transparent 100%)',
+        WebkitMaskImage: 'linear-gradient(90deg, transparent 0, #000 calc(50% - 520px), #000 calc(50% + 520px), transparent 100%)',
       }} />
 
       {/* ── Overlay principal: escurece o fundo sem matar a imagem ── */}
@@ -86,6 +98,14 @@ export function BackgroundCarousel() {
         @keyframes kb-b {
           0%   { transform: scale(1.05) translate(12px, 3px); }
           100% { transform: scale(1.00) translate(0px,  0px); }
+        }
+        /* Quem pede menos movimento no sistema vê as fotos paradas. */
+        @media (prefers-reduced-motion: reduce) {
+          .fundo-foto { animation: none !important; transition: none !important; }
+        }
+        /* No celular a coluna é a tela toda: o véu cobre de ponta a ponta. */
+        @media (max-width: 720px) {
+          .veu-conteudo { mask-image: none !important; -webkit-mask-image: none !important; }
         }
       `}</style>
     </>

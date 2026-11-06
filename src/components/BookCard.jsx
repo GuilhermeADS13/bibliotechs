@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { StarRating } from './StarRating';
-import { bookPlaceholder } from '../placeholder';
+import { CapaLivro } from './CapaLivro';
 
 const STATUS_OPTS = [
   { value: 'lendo',     label: '📖 Lendo' },
@@ -40,8 +40,6 @@ export function BookCard({ livro, refFoto, DA, GRAD_BTN, onAtualizar, onRemover,
     mostrando === 'api'     ? (livro.capa || livro.fotoUsuario) :
     /* auto */               (livro.fotoUsuario || livro.capa);
 
-  const placeholder = bookPlaceholder(160, 220);
-
   const toggleFoto = (e) => {
     e.stopPropagation();
     if (!temFotoUsuario || !temCapaApi) return;
@@ -73,10 +71,12 @@ export function BookCard({ livro, refFoto, DA, GRAD_BTN, onAtualizar, onRemover,
 
       {/* IMAGEM */}
       <div style={{ position: 'relative', overflow: 'hidden' }}>
-        <img
+        <CapaLivro
           ref={refFoto}
-          src={imagemExibida || placeholder}
-          alt={livro.titulo}
+          src={imagemExibida}
+          titulo={livro.titulo}
+          autor={livro.autor}
+          largura={160}
           style={{
             width: '100%',
             aspectRatio: '2/3',
@@ -90,7 +90,9 @@ export function BookCard({ livro, refFoto, DA, GRAD_BTN, onAtualizar, onRemover,
         {/* Badge status */}
         <div style={{
           position: 'absolute', top: '8px', left: '8px',
-          background: cor.bg, color: cor.color, border: `1px solid ${cor.border}`,
+          // A cor do status é translúcida; sem a base de papel por baixo, o
+          // selo sumia sobre capas escuras ("Abandonei" vermelho sobre marrom).
+          background: `linear-gradient(${cor.bg}, ${cor.bg}), #FBF6EA`, color: cor.color, border: `1px solid ${cor.border}`,
           borderRadius: '6px', fontSize: '10px', fontWeight: '800', padding: '2px 7px',
           backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)',
         }}>
@@ -213,13 +215,14 @@ export function BookCard({ livro, refFoto, DA, GRAD_BTN, onAtualizar, onRemover,
       {/* INFO */}
       <div style={{ padding: '12px 14px 14px' }}>
         <h4 style={{
-          fontWeight: '800', fontSize: '13px', color: DA.espresso,
+          fontWeight: '800', fontSize: '15px', color: DA.espresso, lineHeight: 1.25,
           marginBottom: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
         }}>
           {livro.titulo}
         </h4>
+        {/* Era warmBeige sobre branco: o autor mal aparecia. */}
         <p style={{
-          fontSize: '11px', color: DA.warmBeige, marginBottom: '7px',
+          fontSize: '12px', color: DA.walnut, opacity: 0.85, marginBottom: '7px',
           whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
         }}>
           {livro.autor || 'Autor desconhecido'}

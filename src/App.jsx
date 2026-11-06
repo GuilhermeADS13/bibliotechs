@@ -12,7 +12,7 @@ import { ResenhaModal } from './components/ResenhaModal';
 import { BackgroundCarousel } from './components/BackgroundCarousel';
 import { LoveStories } from './components/LoveStories';
 import { loginGoogle, completeRedirectLogin } from './login';
-import { bookPlaceholder } from './placeholder';
+import { CapaLivro } from './components/CapaLivro';
 import { LiteraryAgent } from './components/LiteraryAgent';
 import { Estatisticas } from './components/Estatisticas';
 import { BiaAvatar } from './components/BiaAvatar';
@@ -186,6 +186,12 @@ export default function App() {
     <div style={{ minHeight:'100vh', background:'transparent', fontFamily:"'Segoe UI', sans-serif" }}>
       <BackgroundCarousel />
       <style>{`
+        /* Literata onde há "livro": títulos de seção, títulos de obra, capas
+           e a marca. O h1 fica de fora — a aba I ❤️ YOU tem tipografia própria. */
+        :root { --fonte-livro: 'Literata', Georgia, 'Times New Roman', serif; }
+        h2, h3, h4, .titulo-livro, .marca { font-family: var(--fonte-livro); letter-spacing: -0.01em; }
+        h2, h3, h4 { font-weight: 700 !important; }
+        .titulo-livro { font-weight: 650 !important; }
         @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
         @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
         @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
@@ -238,7 +244,7 @@ export default function App() {
 
             {/* Logo */}
             <button onClick={() => setAba('inicio')} style={{ background:'none', border:'none', cursor:'pointer', display:'flex', alignItems:'center', gap:'8px', padding:0, flexShrink:0 }}>
-              <div style={{ background:GRAD_BTN, borderRadius:'10px', padding:'7px 14px', fontWeight:'900', fontSize:'18px', color:DA.cream, letterSpacing:'-0.5px', boxShadow:'0 2px 10px rgba(131,84,30,0.18)', whiteSpace:'nowrap' }}>
+              <div className="marca" style={{ background:GRAD_BTN, borderRadius:'10px', padding:'7px 14px', fontWeight:'700', fontSize:'19px', color:DA.cream, letterSpacing:'-0.5px', boxShadow:'0 2px 10px rgba(131,84,30,0.18)', whiteSpace:'nowrap' }}>
                 biblio<span style={{ color:DA.mustard }}>tech</span>
               </div>
             </button>
@@ -317,7 +323,7 @@ export default function App() {
             {ultimoLido ? (
               <div className="hero-destaque" style={{ background:GRAD_HERO, borderRadius:'20px', padding:'36px', display:'flex', alignItems:'center', gap:'36px', flexWrap:'wrap', boxShadow:'0 12px 40px rgba(107,30,42,0.35)', border:`1px solid ${DA.warmBurgundy}` }}>
                 <div style={{ position:'relative', flexShrink:0 }}>
-                  <img ref={observar(ultimoLido)} src={ultimoLido.fotoUsuario || ultimoLido.capa || bookPlaceholder(130, 185)} alt={ultimoLido.titulo}
+                  <CapaLivro ref={observar(ultimoLido)} src={ultimoLido.fotoUsuario || ultimoLido.capa} titulo={ultimoLido.titulo} autor={ultimoLido.autor} largura={130}
                     style={{ width:'130px', height:'185px', objectFit:'cover', borderRadius:'10px', boxShadow:'0 8px 24px rgba(131,84,30,0.22)', cursor:'pointer', display:'block' }}
                     onClick={() => { const src = ultimoLido.fotoUsuario || ultimoLido.capa; if (src) setFotoModal({ src, titulo: ultimoLido.titulo }); }} />
                   {(ultimoLido.fotoUsuario || ultimoLido.temFoto) && (
@@ -351,7 +357,7 @@ export default function App() {
                 {destaqueSemLeitura && (
                   <div style={{ position:'relative', flexShrink:0, cursor:'pointer' }}
                     onClick={() => { const src = destaqueSemLeitura.fotoUsuario || destaqueSemLeitura.capa; if (src) setFotoModal({ src, titulo: destaqueSemLeitura.titulo }); }}>
-                    <img ref={observar(destaqueSemLeitura)} src={destaqueSemLeitura.fotoUsuario || destaqueSemLeitura.capa || bookPlaceholder(130, 185)} alt={destaqueSemLeitura.titulo}
+                    <CapaLivro ref={observar(destaqueSemLeitura)} src={destaqueSemLeitura.fotoUsuario || destaqueSemLeitura.capa} titulo={destaqueSemLeitura.titulo} autor={destaqueSemLeitura.autor} largura={130}
                       style={{ width:'130px', height:'185px', objectFit:'cover', borderRadius:'10px', boxShadow:'0 8px 24px rgba(131,84,30,0.22)', display:'block' }} />
                   </div>
                 )}
@@ -414,7 +420,7 @@ export default function App() {
                     <div key={l.id} style={{ minWidth:'100px', textAlign:'center', cursor:'pointer' }}
                       onClick={() => { const src = l.fotoUsuario || l.capa; if (src) setFotoModal({ src, titulo: l.titulo }); }}>
                       <div style={{ position:'relative', display:'inline-block' }}>
-                        <img ref={observar(l)} src={l.fotoUsuario || l.capa || bookPlaceholder(100, 140)} alt={l.titulo}
+                        <CapaLivro ref={observar(l)} src={l.fotoUsuario || l.capa} titulo={l.titulo} autor={l.autor} largura={100}
                           style={{ width:'100px', height:'140px', objectFit:'cover', borderRadius:'8px', boxShadow:'0 6px 16px rgba(44,26,20,0.2)', display:'block' }} />
                         {(l.fotoUsuario || l.temFoto) && (
                           <div style={{ position:'absolute', bottom:'-5px', right:'-5px', background:DA.copper, borderRadius:'50%', width:'18px', height:'18px', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'9px', border:'2px solid white' }}>📷</div>
@@ -593,7 +599,7 @@ export default function App() {
                     <div key={l.id} style={{ display:'flex', alignItems:'center', gap:'14px', padding:'12px', borderRadius:'12px', background:DA.cream }}>
                       <div style={{ position:'relative', flexShrink:0, cursor:'pointer' }}
                         onClick={() => { const src = l.fotoUsuario||l.capa; if(src) setFotoModal({src,titulo:l.titulo}); }}>
-                        <img ref={observar(l)} src={l.fotoUsuario||l.capa||bookPlaceholder(40, 56)} alt={l.titulo}
+                        <CapaLivro ref={observar(l)} src={l.fotoUsuario||l.capa} titulo={l.titulo} autor={l.autor} largura={40}
                           style={{ width:'40px', height:'56px', objectFit:'cover', borderRadius:'5px', display:'block' }} />
                         {(l.fotoUsuario || l.temFoto) && (
                           <div style={{ position:'absolute', bottom:'-4px', right:'-4px', background:DA.copper, borderRadius:'50%', width:'14px', height:'14px', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'7px', border:'1px solid white' }}>📷</div>

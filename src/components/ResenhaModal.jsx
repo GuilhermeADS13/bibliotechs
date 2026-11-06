@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { StarRating } from './StarRating';
 import { PhotoUpload } from './PhotoUpload';
-import { bookPlaceholder } from '../placeholder';
+import { CapaLivro } from './CapaLivro';
 
 export function ResenhaModal({ livro, DA, GRAD_BTN, onSalvar, onFechar }) {
   const [resenha, setResenha]         = useState(livro.resenha || '');
@@ -23,7 +23,6 @@ export function ResenhaModal({ livro, DA, GRAD_BTN, onSalvar, onFechar }) {
   const temFoto = !!fotoUsuario || (!fotoTrocada && !!livro.temFoto);
 
   const imgExibida = livro.fotoUsuario || livro.capa;
-  const placeholder = bookPlaceholder(70, 100);
 
   return (
     <div style={{
@@ -43,9 +42,11 @@ export function ResenhaModal({ livro, DA, GRAD_BTN, onSalvar, onFechar }) {
         {/* Header */}
         <div style={{ display: 'flex', gap: '18px', marginBottom: '24px' }}>
           <div style={{ position: 'relative', flexShrink: 0 }}>
-            <img
-              src={imgExibida || placeholder}
-              alt={livro.titulo}
+            <CapaLivro
+              src={imgExibida}
+              titulo={livro.titulo}
+              autor={livro.autor}
+              largura={72}
               style={{ width:'72px', height:'102px', objectFit:'cover', borderRadius:'10px', boxShadow:'0 4px 14px rgba(0,0,0,0.2)', display:'block' }}
             />
             {livro.fotoUsuario && (
