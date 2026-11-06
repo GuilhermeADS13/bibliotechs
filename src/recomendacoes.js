@@ -290,6 +290,79 @@ function diversificar(candidatos, limite) {
   return escolhidos;
 }
 
+// --- O QUE A PESSOA JÁ VIU -------------------------------------------------
+//
+// A dor relatada pela usuária: "as recomendações são sempre as mesmas". As
+// buscas são determinísticas (mesmos gêneros e autores favoritos, mesma ordem
+// da API), então toda visita nova e todo "me recomenda" no chat começavam
+// pelos mesmos seis livros. Guardar o que já apareceu e mandar para o fim da
+// fila faz cada visita começar pelo que ela ainda não viu; esgotadas as
+// novidades, volta pelas vistas há mais tempo.
+//
+// Fica no localStorage: é preferência de tela deste aparelho, não dado da
+// estante — perder isso só faz a rotação recomeçar.
+
+const CHAVE_VISTAS = 'da-recs-vistas';
+const MAX_VISTAS = 400;
+const VALIDADE_VISTA_MS = 60 * 24 * 60 * 60 * 1000; // 60 dias
+
+/** Map de chaveTitulo → quando foi visto (ms). Vazio se não houver ou falhar. */
+export function lerVistas(agora = Date.now()) {
+  try {
+    const bruto = JSON.parse(localStorage.getItem(CHAVE_VISTAS) || '{}');
+    return new Map(Object.entries(bruto).filter(([, quando]) =>
+      typeof quando === 'number' && agora - quando < VALIDADE_VISTA_MS));
+  } catch {
+    return new Map();
+  }
+}
+
+/** Marca os títulos como vistos agora. Mantém só os mais recentes. */
+export function registrarVistas(titulos, agora = Date.now()) {
+  const chaves = (titulos || []).map(chaveTitulo).filter(Boolean);
+  if (chaves.length === 0) return;
+  try {
+    const vistas = lerVistas(agora);
+    for (const c of chaves) vistas.set(c, agora);
+    const recentes = [...vistas.entries()].sort((a, b) => b[1] - a[1]).slice(0, MAX_VISTAS);
+    localStorage.setItem(CHAVE_VISTAS, JSON.stringify(Object.fromEntries(recentes)));
+  } catch {
+    // Sem armazenamento (aba anônima, cota cheia): a rotação só não acontece.
+  }
+}
+
+/**
+ * Títulos dos candidatos que aparecem no texto da resposta.
+ *
+ * No chat, a B.IA recebe seis candidatos e comenta dois ou três. Só esses
+ * contam como vistos; os outros seguem como novidade para a próxima vez.
+ * Compara sem subtítulo, acento ou caixa — o modelo raramente copia o título
+ * exatamente como veio da Google Books.
+ */
+export function citadosNaResposta(candidatos, texto) {
+  const corpo = ` ${normalizar(texto)} `;
+  return (candidatos || [])
+    .filter(l => {
+      const chave = chaveTitulo(l?.titulo);
+      // Título de uma palavra curta ("It", "Ela") casaria com qualquer frase.
+      return chave.length >= 4 && corpo.includes(` ${chave} `);
+    })
+    .map(l => l.titulo);
+}
+
+/**
+ * Não vistas primeiro, na ordem original; depois as vistas, da vista há mais
+ * tempo para a mais recente. Nada é descartado — numa estante com poucas
+ * candidatas, repetir é melhor que mostrar menos.
+ */
+function priorizarNaoVistas(candidatos, vistas) {
+  if (!(vistas instanceof Map) || vistas.size === 0) return candidatos;
+  const quando = (l) => vistas.get(chaveTitulo(l.titulo));
+  const novas = candidatos.filter(l => quando(l) === undefined);
+  const jaVistas = candidatos.filter(l => quando(l) !== undefined).sort((a, b) => quando(a) - quando(b));
+  return [...novas, ...jaVistas];
+}
+
 /**
  * Ordena a fila inteira em páginas, cada uma diversificada por autor.
  *
@@ -360,7 +433,7 @@ function daOpenLibrary(livro, motivo) {
  * 'sem-favoritos' (há leituras, mas nenhuma bem avaliada), 'sem-resultados' e
  * 'falha-busca' (nenhuma fonte respondeu — não é o mesmo que "nada novo").
  */
-export async function gerarRecomendacoes(livros, { googleBooksKey = '', limite = 6, sinal } = {}) {
+export async function gerarRecomendacoes(livros, { googleBooksKey = '', limite = 6, sinal, vistas } = {}) {
   const perfil = perfilLeitor(livros);
 
   if (perfil.totalLidos === 0) {
@@ -426,7 +499,7 @@ export async function gerarRecomendacoes(livros, { googleBooksKey = '', limite =
     return { recomendacoes: [], fila: [], perfil, motivo: 'sem-resultados' };
   }
 
-  const fila = paginar(candidatos, limite);
+  const fila = paginar(priorizarNaoVistas(candidatos, vistas), limite);
   return {
     recomendacoes: fila.slice(0, limite),
     fila,

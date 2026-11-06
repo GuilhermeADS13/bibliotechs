@@ -19,6 +19,11 @@ const TIMEOUT_MS = 22000;
 // derrubaria a resposta inteira.
 const MAX_RESENHAS = 8;
 const MAX_CHARS_RESENHA = 500;
+// Tetos das listas da estante no contexto, pelo mesmo motivo. Com eles, uma
+// estante grande ocupa uns 6 mil caracteres — folga larga para os 20 mil.
+const MAX_LIDOS_NO_CONTEXTO = 20;
+const MAX_FILA_NO_CONTEXTO = 30;
+const MAX_ABANDONADOS_NO_CONTEXTO = 15;
 
 /**
  * Token do usuário logado, ou null.
@@ -98,11 +103,15 @@ export function montarContexto(livros, ano = new Date().getFullYear()) {
   }
 
   // A estante inteira seria grande demais; as concluídas mais recentes bastam
-  // para o modelo comentar leituras específicas.
-  const recentes = acervo
-    .filter(l => l?.status === 'lido' && l?.dataTermino)
-    .sort((a, b) => String(b.dataTermino).localeCompare(String(a.dataTermino)))
-    .slice(0, 12);
+  // para o modelo comentar leituras específicas. Lido SEM data entra depois
+  // das datadas: antes ficava de fora, e a B.IA não sabia que a pessoa já
+  // tinha lido um livro cadastrado sem data de término.
+  const lidos = acervo.filter(l => l?.status === 'lido');
+  const recentes = [
+    ...lidos.filter(l => l?.dataTermino)
+      .sort((a, b) => String(b.dataTermino).localeCompare(String(a.dataTermino))),
+    ...lidos.filter(l => !l?.dataTermino),
+  ].slice(0, MAX_LIDOS_NO_CONTEXTO);
 
   if (recentes.length > 0) {
     linhas.push('', 'Últimas obras concluídas (mais recente primeiro):');
@@ -111,14 +120,36 @@ export function montarContexto(livros, ano = new Date().getFullYear()) {
       if (l.autor) partes.push(`de ${l.autor}`);
       if (l.genero) partes.push(`[${l.genero}]`);
       if (Number(l.nota) > 0) partes.push(`nota ${l.nota}/5`);
-      partes.push(`concluído em ${l.dataTermino}`);
+      partes.push(l.dataTermino ? `concluído em ${l.dataTermino}` : 'sem data de término');
       linhas.push(`- ${partes.join(' ')}`);
+    }
+    if (lidos.length > recentes.length) {
+      linhas.push(`(e mais ${lidos.length - recentes.length} lido(s) mais antigo(s), fora desta lista)`);
     }
   }
 
+  const comAutor = (l) => `"${l.titulo}"${l.autor ? ` (${l.autor})` : ''}`;
+
   const lendo = acervo.filter(l => l?.status === 'lendo');
   if (lendo.length > 0) {
-    linhas.push('', `Lendo agora: ${lendo.map(l => `"${l.titulo}"`).join(', ')}`);
+    linhas.push('', `Lendo agora: ${lendo.map(comAutor).join(', ')}`);
+  }
+
+  // A fila e as desistências não chegavam ao modelo. Sem a fila, ele indicava
+  // como novidade um livro que a pessoa já tinha separado para ler, e não
+  // tinha como responder "qual da minha lista eu leio primeiro?".
+  const fila = acervo.filter(l => l?.status === 'quero-ler');
+  if (fila.length > 0) {
+    linhas.push('', 'Lista "quero ler" (já estão na estante — não indique como novidade; pode ajudar a escolher entre eles):');
+    linhas.push(`${fila.slice(0, MAX_FILA_NO_CONTEXTO).map(comAutor).join('; ')}`
+      + (fila.length > MAX_FILA_NO_CONTEXTO ? `; e mais ${fila.length - MAX_FILA_NO_CONTEXTO}` : ''));
+  }
+
+  const abandonados = acervo.filter(l => l?.status === 'abandonei');
+  if (abandonados.length > 0) {
+    linhas.push('', 'Abandonados (não indique de novo sem a pessoa pedir):');
+    linhas.push(`${abandonados.slice(0, MAX_ABANDONADOS_NO_CONTEXTO).map(comAutor).join('; ')}`
+      + (abandonados.length > MAX_ABANDONADOS_NO_CONTEXTO ? `; e mais ${abandonados.length - MAX_ABANDONADOS_NO_CONTEXTO}` : ''));
   }
 
   // As resenhas são o dado mais rico da estante e não chegavam ao modelo: ele

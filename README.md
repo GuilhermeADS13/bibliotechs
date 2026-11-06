@@ -62,7 +62,7 @@ gratuito.
   da Luma, do SAS-AtendimentoPsicologico). Variáveis `LLM_FALLBACK_*` no
   `.env.example`
 - Vercel — hospedagem e função serverless
-- Vitest + Testing Library + MSW — 328 testes
+- Vitest + Testing Library + MSW — 345 testes
 
 Os estilos são inline e CSS próprio (`src/index.css`); o Tailwind está no
 pipeline mas praticamente não é usado pelos componentes.

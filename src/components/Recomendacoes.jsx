@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { gerarRecomendacoes, chaveTitulo } from '../recomendacoes';
+import { gerarRecomendacoes, chaveTitulo, lerVistas, registrarVistas } from '../recomendacoes';
 import { sugerirAutoresParecidos, mensagemDeFalha } from '../bia';
-import { bookPlaceholder } from '../placeholder';
+import { CapaLivro } from './CapaLivro';
 
 const GLASS_PANEL = 'rgba(245,240,224,0.85)';
 const PANEL_SHADOW = '0 18px 60px rgba(131,84,30,0.18)';
@@ -163,7 +163,7 @@ export function Recomendacoes({ livros, DA, GRAD_BTN, googleBooksKey, onIrParaAd
     setErro('');
     setAutores({ estado: 'inicial', lista: [], mensagem: '' });
 
-    gerarRecomendacoes(livrosRef.current, { googleBooksKey, limite: POR_PAGINA, sinal: controller.signal })
+    gerarRecomendacoes(livrosRef.current, { googleBooksKey, limite: POR_PAGINA, sinal: controller.signal, vistas: lerVistas() })
       .then(r => {
         if (!ativo) return;
         aplicar(r);
@@ -182,6 +182,13 @@ export function Recomendacoes({ livros, DA, GRAD_BTN, googleBooksKey, onIrParaAd
   }, [chaveCache, recarregar]);
 
   useEffect(() => () => abortAutoresRef.current?.abort(), []);
+
+  // O que apareceu na tela vai para o fim da fila na próxima visita — é o que
+  // impede a aba de abrir sempre com os mesmos seis livros.
+  const titulosNaTela = itens.map(l => l.titulo).join('|');
+  useEffect(() => {
+    if (!carregando && titulosNaTela) registrarVistas(titulosNaTela.split('|'));
+  }, [carregando, titulosNaTela]);
 
   const pedirAutores = async () => {
     abortAutoresRef.current?.abort();
@@ -294,15 +301,15 @@ export function Recomendacoes({ livros, DA, GRAD_BTN, googleBooksKey, onIrParaAd
                 background: DA.cream, borderRadius: '12px',
                 border: `1px solid ${DA.warmBeige}`,
               }}>
-                <img
-                  src={livro.capa || bookPlaceholder(54, 78)}
-                  alt={livro.titulo}
-                  width="54" height="78"
-                  loading="lazy"
-                  style={{ width: '54px', height: '78px', objectFit: 'cover', borderRadius: '6px', flexShrink: 0, boxShadow: '0 4px 12px rgba(44,26,20,0.15)' }}
+                <CapaLivro
+                  src={livro.capa}
+                  titulo={livro.titulo}
+                  autor={livro.autor}
+                  largura={64}
+                  style={{ width: '64px', height: '94px', objectFit: 'cover', borderRadius: '6px', flexShrink: 0, boxShadow: '0 4px 12px rgba(44,26,20,0.15)' }}
                 />
                 <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-                  <p style={{ fontWeight: '800', fontSize: '13px', color: DA.espresso, lineHeight: 1.3, marginBottom: '3px' }}>
+                  <p className="titulo-livro" style={{ fontWeight: '800', fontSize: '15px', color: DA.espresso, lineHeight: 1.25, marginBottom: '3px' }}>
                     {livro.titulo}
                   </p>
                   <p style={{ fontSize: '11px', color: DA.walnut, opacity: 0.85, marginBottom: '6px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

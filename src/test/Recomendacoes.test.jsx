@@ -4,7 +4,7 @@ import { Recomendacoes, limparCacheRecomendacoes } from '../components/Recomenda
 
 // O cache da sessão vive fora do componente; sem limpar, um teste herdaria o
 // resultado do anterior.
-beforeEach(() => limparCacheRecomendacoes());
+beforeEach(() => { limparCacheRecomendacoes(); localStorage.clear(); });
 
 // Relato: "não consigo adicionar diretamente dos recomendados". Havia só um link
 // para a aba Adicionar, onde a pessoa redigitava título, autor e gênero que já
@@ -114,9 +114,9 @@ describe('Recomendacoes: falha, páginas e cache', () => {
     montar();
 
     await waitFor(() => expect(screen.getByText(/Outras sugestões \(1\/2\)/)).toBeInTheDocument(), { timeout: 3000 });
-    const primeira = screen.getAllByRole('img').map(i => i.getAttribute('alt'));
+    const primeira = screen.getAllByRole('img').map(i => i.getAttribute('alt') || i.getAttribute('aria-label'));
     fireEvent.click(screen.getByText(/Outras sugestões/));
-    const segunda = screen.getAllByRole('img').map(i => i.getAttribute('alt'));
+    const segunda = screen.getAllByRole('img').map(i => i.getAttribute('alt') || i.getAttribute('aria-label'));
 
     expect(segunda).toHaveLength(6);
     expect(segunda.some(t => primeira.includes(t))).toBe(false);
@@ -127,27 +127,46 @@ describe('Recomendacoes: falha, páginas e cache', () => {
     vi.stubGlobal('fetch', espiao);
 
     const { unmount } = montar();
-    await waitFor(() => expect(screen.getByAltText('Livro 0')).toBeInTheDocument(), { timeout: 3000 });
+    await waitFor(() => expect(screen.getByRole('img', { name: 'Livro 0' })).toBeInTheDocument(), { timeout: 3000 });
     const chamadas = espiao.mock.calls.length;
     unmount();
 
     montar();
-    expect(screen.getByAltText('Livro 0')).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Livro 0' })).toBeInTheDocument();
     expect(espiao.mock.calls.length).toBe(chamadas);
   });
 
   it('livro adicionado em outra visita não volta do cache', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => json(volumes(3))));
     const { unmount } = montar();
-    await waitFor(() => expect(screen.getByAltText('Livro 0')).toBeInTheDocument(), { timeout: 3000 });
+    await waitFor(() => expect(screen.getByRole('img', { name: 'Livro 0' })).toBeInTheDocument(), { timeout: 3000 });
     unmount();
 
     // A estante ganhou "Livro 0" em quero-ler: não muda o perfil, mas o livro sai.
     render(<Recomendacoes
       livros={[...estante, { id: 2, titulo: 'Livro 0', status: 'quero-ler' }]}
       DA={DA} GRAD_BTN="" googleBooksKey="k" />);
-    expect(screen.queryByAltText('Livro 0')).toBeNull();
-    expect(screen.getByAltText('Livro 1')).toBeInTheDocument();
+    expect(screen.queryByRole('img', { name: 'Livro 0' })).toBeNull();
+    expect(screen.getByRole('img', { name: 'Livro 1' })).toBeInTheDocument();
+  });
+
+  // A queixa da usuária, na tela: abrir o app outro dia e ver os mesmos seis.
+  it('numa sessão nova, a aba abre com livros que ainda não apareceram', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => json(volumes(18))));
+    const nomes = () => screen.getAllByRole('img').map(i => i.getAttribute('alt') || i.getAttribute('aria-label'));
+
+    const { unmount } = montar();
+    await waitFor(() => expect(screen.getAllByText(/Outras sugestões/).length).toBeGreaterThan(0), { timeout: 3000 });
+    const ontem = nomes();
+    unmount();
+
+    limparCacheRecomendacoes(); // recarregar a página zera o cache da sessão
+    montar();
+    await waitFor(() => expect(screen.getAllByText(/Outras sugestões/).length).toBeGreaterThan(0), { timeout: 3000 });
+    const hoje = nomes();
+
+    expect(hoje).toHaveLength(6);
+    expect(hoje.filter(t => ontem.includes(t))).toEqual([]);
   });
 
   it('mostra a sinopse sem as tags HTML da Google Books', async () => {

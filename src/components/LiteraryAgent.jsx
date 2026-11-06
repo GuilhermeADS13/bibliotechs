@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { calcularEstatisticas, resumoMensalTexto, MESES_LONGOS } from '../estatisticas';
-import { gerarRecomendacoes } from '../recomendacoes';
+import { gerarRecomendacoes, lerVistas, registrarVistas, citadosNaResposta } from '../recomendacoes';
 import {
   montarContexto, perguntarAoModelo, mensagemDeFalha,
   identificarLivroMencionado, contextoDoLivro, contextoDeRecomendacoes,
@@ -152,6 +152,7 @@ export function LiteraryAgent({
       || p.includes('proximo livro');
 
     let contexto = montarContexto(livros);
+    let candidatosIndicados = [];
 
     // Dados reais do livro citado: sem isso o modelo responderia de memória e
     // poderia errar editora, ano ou número de páginas.
@@ -185,11 +186,16 @@ export function LiteraryAgent({
     // da annie ernaux" não é um pedido de sugestão pelo perfil dela, e juntar as
     // duas listas só dá ao modelo material para responder outra coisa.
     else if (querRecomendacao && !autorCitado?.confirmado) {
-      const { recomendacoes, perfil } = await gerarRecomendacoes(livros, {
+      // `vistas`: o que já foi indicado (aqui ou na aba) vai para o fim da
+      // fila. Sem isso, todo "me recomenda" recebia os mesmos seis candidatos
+      // e a B.IA indicava sempre os mesmos livros — a queixa da usuária.
+      const r = await gerarRecomendacoes(livros, {
         googleBooksKey,
         limite: 6,
+        vistas: lerVistas(),
       });
-      contexto += contextoDeRecomendacoes(recomendacoes, perfil);
+      candidatosIndicados = r.recomendacoes;
+      contexto += contextoDeRecomendacoes(r.recomendacoes, r.perfil);
     }
 
     // `mensagens` ainda não inclui a pergunta atual (o React só aplica o estado
@@ -198,7 +204,12 @@ export function LiteraryAgent({
       historico: mensagens,
       aoReceber: aoReceberParcial,
     });
-    if (texto) return texto;
+    if (texto) {
+      // Só conta como visto o que ela de fato citou na resposta: o modelo
+      // escolhe 2 ou 3 dos 6, e os outros continuam sendo novidade.
+      registrarVistas(citadosNaResposta(candidatosIndicados, texto));
+      return texto;
+    }
 
     // O modelo falhou. As regras só assumem se souberem responder de fato; do
     // contrário o usuário via um texto genérico que parecia resposta e se
@@ -351,7 +362,10 @@ export function LiteraryAgent({
       const { recomendacoes, perfil, motivo } = await gerarRecomendacoes(livros, {
         googleBooksKey,
         limite: 4,
+        vistas: lerVistas(),
       });
+      // Aqui a lista vai inteira para a tela, então as quatro contam como vistas.
+      registrarVistas(recomendacoes.map(r => r.titulo));
 
       if (motivo === 'sem-historico') {
         resposta = `Pra indicar direito eu preciso saber do que você gosta, e ainda não tem nada marcado como lido aí. Marca um livro que você já terminou e dá uma nota — a partir daí eu acerto bem mais.`;

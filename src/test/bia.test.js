@@ -56,6 +56,48 @@ describe('montarContexto', () => {
     expect(montarContexto(acervo, 2026)).toMatch(/Lendo agora: "Duna"/);
   });
 
+  // A B.IA não via a fila nem as desistências: indicava como novidade o que a
+  // pessoa já tinha separado para ler, e não sabia responder "qual da minha
+  // lista eu leio primeiro?". Lido sem data também sumia.
+  describe('a estante inteira, não só os lidos com data', () => {
+    const estanteCompleta = [
+      { id: 1, titulo: 'Dom Casmurro', autor: 'Machado de Assis', status: 'lido', nota: 5, dataTermino: '2026-03-10' },
+      { id: 2, titulo: 'Iracema', autor: 'José de Alencar', status: 'lido', nota: 4 },
+      { id: 3, titulo: 'A Redoma de Vidro', autor: 'Sylvia Plath', status: 'quero-ler' },
+      { id: 4, titulo: 'It: A Coisa', autor: 'Stephen King', status: 'abandonei' },
+      { id: 5, titulo: 'Torto Arado', autor: 'Itamar Vieira Junior', status: 'lendo' },
+    ];
+    const ctx = montarContexto(estanteCompleta, 2026);
+
+    it('inclui a lista "quero ler" avisando que não é novidade', () => {
+      expect(ctx).toMatch(/quero ler.*não indique como novidade/i);
+      expect(ctx).toContain('"A Redoma de Vidro" (Sylvia Plath)');
+    });
+
+    it('inclui os abandonados', () => {
+      expect(ctx).toMatch(/Abandonados/);
+      expect(ctx).toContain('"It: A Coisa" (Stephen King)');
+    });
+
+    it('inclui lido sem data, depois dos datados', () => {
+      expect(ctx).toContain('"Iracema" de José de Alencar');
+      expect(ctx).toContain('sem data de término');
+      expect(ctx.indexOf('Dom Casmurro')).toBeLessThan(ctx.indexOf('Iracema'));
+    });
+
+    it('lendo agora vem com o autor', () => {
+      expect(ctx).toContain('Lendo agora: "Torto Arado" (Itamar Vieira Junior)');
+    });
+
+    it('limita a fila para não estourar o contexto', () => {
+      const muitos = Array.from({ length: 50 }, (_, i) => ({ id: i, titulo: `Fila ${i}`, status: 'quero-ler' }));
+      const c = montarContexto(muitos, 2026);
+      expect(c).toContain('"Fila 29"');
+      expect(c).not.toContain('"Fila 30"');
+      expect(c).toContain('e mais 20');
+    });
+  });
+
   // As resenhas são o dado mais rico da estante e não chegavam ao modelo: ele
   // sabia que a pessoa deu 5 estrelas, mas não por quê.
   describe('resenhas', () => {

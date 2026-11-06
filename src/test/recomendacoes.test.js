@@ -1,6 +1,7 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import {
   perfilLeitor, gerarRecomendacoes, normalizar, buscarAutor, chaveTitulo, notaAjustada,
+  lerVistas, registrarVistas, citadosNaResposta,
 } from '../recomendacoes';
 
 const estante = [
@@ -396,5 +397,77 @@ describe('motivos', () => {
   it('o motivo do card cita o livro de que a pessoa gostou', async () => {
     const r = await gerarRecomendacoes(estante);
     expect(r.recomendacoes.map(x => x.motivo)).toContain('Porque você gostou de Dom Casmurro');
+  });
+});
+
+// A queixa da usuária: "as recomendações são sempre as mesmas". As buscas são
+// determinísticas, então cada visita começava pelos mesmos seis livros.
+describe('rotação: o que já foi visto vai para o fim', () => {
+  const vinte = () => respostaJson({
+    items: Array.from({ length: 20 }, (_, i) => volume('v' + i, 'Livro ' + i)),
+  });
+  beforeEach(() => localStorage.clear());
+  afterEach(() => { vi.unstubAllGlobals(); localStorage.clear(); });
+
+  it('a segunda visita não abre com os mesmos livros da primeira', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => vinte()));
+
+    const primeira = await gerarRecomendacoes([estante[0]], { vistas: lerVistas() });
+    registrarVistas(primeira.recomendacoes.map(r => r.titulo)); // o que a tela mostrou
+
+    const segunda = await gerarRecomendacoes([estante[0]], { vistas: lerVistas() });
+    const repetidos = segunda.recomendacoes.filter(r =>
+      primeira.recomendacoes.some(p => p.titulo === r.titulo));
+    expect(repetidos).toEqual([]);
+  });
+
+  it('esgotadas as novidades, volta pelas vistas há mais tempo', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => respostaJson({
+      items: ['A', 'B', 'C'].map(t => volume(t, `Livro ${t}`)),
+    })));
+    registrarVistas(['Livro A'], 1000);
+    registrarVistas(['Livro B'], 3000);
+    registrarVistas(['Livro C'], 2000);
+    const vistas = new Map([['livro a', 1000], ['livro b', 3000], ['livro c', 2000]]);
+
+    const r = await gerarRecomendacoes([estante[0]], { vistas, limite: 3 });
+    expect(r.recomendacoes.map(x => x.titulo)).toEqual(['Livro A', 'Livro C', 'Livro B']);
+  });
+
+  it('nunca descarta: com tudo visto, a lista continua cheia', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => vinte()));
+    const todas = new Map(Array.from({ length: 20 }, (_, i) => [`livro ${i}`, 1000 + i]));
+    const r = await gerarRecomendacoes([estante[0]], { vistas: todas });
+    expect(r.recomendacoes).toHaveLength(6);
+  });
+
+  it('lerVistas esquece o que passou de 60 dias e tolera lixo no armazenamento', () => {
+    const agora = Date.now();
+    registrarVistas(['Antigo'], agora - 61 * 86400000);
+    registrarVistas(['Recente'], agora);
+    expect([...lerVistas(agora).keys()]).toEqual(['recente']);
+
+    localStorage.setItem('da-recs-vistas', '{quebrado');
+    expect(lerVistas().size).toBe(0);
+  });
+});
+
+describe('citadosNaResposta', () => {
+  const candidatos = [
+    { titulo: 'O Silmarillion' },
+    { titulo: 'Memórias Póstumas de Brás Cubas: edição comentada' },
+    { titulo: 'It' },
+    { titulo: 'Sanctuary' },
+  ];
+
+  it('só conta o que a B.IA citou, ignorando acento, caixa e subtítulo', () => {
+    const texto = 'Vai de **o silmarillion** se quer mitologia. E Memorias Postumas de Bras Cubas, claro.';
+    expect(citadosNaResposta(candidatos, texto)).toEqual([
+      'O Silmarillion', 'Memórias Póstumas de Brás Cubas: edição comentada',
+    ]);
+  });
+
+  it('título curto demais não casa com qualquer frase', () => {
+    expect(citadosNaResposta(candidatos, 'It was fine, it really was')).toEqual([]);
   });
 });
