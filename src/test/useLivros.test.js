@@ -37,6 +37,22 @@ describe('useLivros sem login', () => {
     expect(carregarFirestore).not.toHaveBeenCalled();
   });
 
+  // Em `npm run dev` o StrictMode roda os efeitos duas vezes. Entre uma e outra,
+  // o efeito que persiste gravava a lista inicial vazia — e a segunda leitura
+  // já encontrava "[]". Cada recarregamento apagava a estante local.
+  it('sobrevive à montagem dupla do StrictMode', async () => {
+    const { StrictMode, createElement } = await import('react');
+    localStorage.setItem('da-livros', JSON.stringify([{ id: 1, titulo: 'Duna', status: 'lido' }]));
+
+    const { result } = renderHook(() => useLivros(null), {
+      wrapper: ({ children }) => createElement(StrictMode, null, children),
+    });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.livros.map(l => l.titulo)).toEqual(['Duna']);
+    expect(JSON.parse(localStorage.getItem('da-livros'))).toHaveLength(1);
+  });
+
   it('adiciona e persiste localmente', async () => {
     const { result } = renderHook(() => useLivros(null));
     await waitFor(() => expect(result.current.loading).toBe(false));

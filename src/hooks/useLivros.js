@@ -46,8 +46,18 @@ async function migrarFotosEmbutidas(lista, user, jaVistos) {
   }
 }
 
+function lerLocais() {
+  try {
+    const lista = JSON.parse(localStorage.getItem('da-livros') || '[]');
+    return Array.isArray(lista) ? lista : [];
+  } catch { return []; }
+}
+
 export function useLivros(user) {
-  const [livros, setLivros]   = useState([]);
+  // Começa já com o que está salvo. Começando com [], o efeito que persiste
+  // gravava a lista vazia antes da leitura — e, com o StrictMode do `npm run
+  // dev` repetindo os efeitos, a releitura encontrava "[]" e a estante sumia.
+  const [livros, setLivros]   = useState(() => (user ? [] : lerLocais()));
   const [loading, setLoading] = useState(true);
   // Ids já tratados pela migração das fotos embutidas. Sem esta trava a
   // migração se repetiria sem fim: cada `updateDoc` dela dispara o
@@ -56,7 +66,7 @@ export function useLivros(user) {
 
   useEffect(() => {
     if (!user) {
-      try { setLivros(JSON.parse(localStorage.getItem('da-livros') || '[]')); } catch {}
+      setLivros(lerLocais());
       setLoading(false);
       return;
     }

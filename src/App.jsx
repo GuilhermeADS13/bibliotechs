@@ -165,12 +165,15 @@ export default function App() {
 
   const NavButton = ({ a }) => (
     <button onClick={() => { setAba(a.key); setNavMobile(false); }} style={{
-      padding:'8px 14px', borderRadius:'9px', border:'none', cursor:'pointer',
+      padding:'8px 11px', borderRadius:'9px', border:'none', cursor:'pointer',
       fontWeight:'700', fontSize:'13px', transition:'all .2s',
       background: a.special ? 'linear-gradient(135deg, #FF2D78, #C2185B)' : (aba === a.key ? GRAD_NAV_ACT : 'rgba(255,255,255,0.08)'),
       color: a.special ? '#fff' : (aba === a.key ? DA.cream : DA.warmBeige),
       boxShadow: a.special ? '0 2px 14px rgba(255,45,120,0.5)' : (aba === a.key ? '0 2px 10px rgba(0,0,0,0.3)' : 'none'),
       display:'flex', alignItems:'center', gap:'6px',
+      // Sem isto, "Minha Estante" e "I ❤️ YOU" quebravam em duas linhas e
+      // os botões da barra ficavam com alturas diferentes.
+      whiteSpace:'nowrap',
     }}>
       {a.avatar
         ? <BiaAvatar size={18} />
@@ -191,9 +194,21 @@ export default function App() {
         .nav-desktop { display: flex !important; }
         .hamburger-btn { display: none !important; }
         .mobile-menu { animation: slideDown .2s ease forwards; }
-        @media(max-width:768px) {
+        /* 1100 e não 768: com os rótulos numa linha só, as sete abas mais o
+           botão de login precisam de ~1080px (medido) — abaixo disso a barra
+           estourava a largura. */
+        @media(max-width:1100px) {
           .nav-desktop { display: none !important; }
           .hamburger-btn { display: flex !important; }
+        }
+        /* Celular: o destaque do último livro empilhava uma capa de 130x185
+           sobre o texto e ocupava meia tela antes de qualquer outra coisa. */
+        @media(max-width:520px) {
+          .hero-destaque { padding: 20px !important; gap: 16px !important; flex-wrap: nowrap !important; }
+          .hero-destaque img { width: 78px !important; height: 112px !important; }
+          .hero-destaque h2 { font-size: 21px !important; }
+          .hero-destaque p:first-child { letter-spacing: 1.5px !important; }
+          .banner-extra { display: none; }
         }
         @keyframes heartbeat { 0%,100%{transform:scale(1)} 25%{transform:scale(1.3)} 50%{transform:scale(1.05)} 75%{transform:scale(1.25)} }
         .heartbeat { animation: heartbeat 1.4s ease-in-out infinite; display:inline-block; }
@@ -288,18 +303,19 @@ export default function App() {
             <button onClick={() => loginGoogle()}
               style={{ background:'none', border:'none', color:'#C49A22', fontWeight:'800', cursor:'pointer', textDecoration:'underline', fontSize:'13px', textUnderlineOffset:'3px' }}>
               Entre com Google
-            </button>{' '}para sincronizar em qualquer lugar.
+            </button><span className="banner-extra">{' '}para sincronizar em qualquer lugar.</span>
           </span>
         </div>
       )}
 
-      <div style={{ maxWidth:'1100px', margin:'0 auto', padding:'24px 16px' }}>
+      {/* Respiro no fim para o botão flutuante da B.IA não cobrir o último card. */}
+      <div style={{ maxWidth:'1100px', margin:'0 auto', padding:'24px 16px 112px' }}>
 
         {/* INÍCIO */}
         {aba === 'inicio' && (
           <div className="page-content" style={{ display:'flex', flexDirection:'column', gap:'20px' }}>
             {ultimoLido ? (
-              <div style={{ background:GRAD_HERO, borderRadius:'20px', padding:'36px', display:'flex', alignItems:'center', gap:'36px', flexWrap:'wrap', boxShadow:'0 12px 40px rgba(107,30,42,0.35)', border:`1px solid ${DA.warmBurgundy}` }}>
+              <div className="hero-destaque" style={{ background:GRAD_HERO, borderRadius:'20px', padding:'36px', display:'flex', alignItems:'center', gap:'36px', flexWrap:'wrap', boxShadow:'0 12px 40px rgba(107,30,42,0.35)', border:`1px solid ${DA.warmBurgundy}` }}>
                 <div style={{ position:'relative', flexShrink:0 }}>
                   <img ref={observar(ultimoLido)} src={ultimoLido.fotoUsuario || ultimoLido.capa || bookPlaceholder(130, 185)} alt={ultimoLido.titulo}
                     style={{ width:'130px', height:'185px', objectFit:'cover', borderRadius:'10px', boxShadow:'0 8px 24px rgba(131,84,30,0.22)', cursor:'pointer', display:'block' }}
@@ -331,7 +347,7 @@ export default function App() {
               /* Tem livro, só não tem nenhum concluído. Antes esse caso caía no
                  card de estante vazia: quem acabava de cadastrar um livro lia
                  "Sua estante está vazia" logo depois de adicioná-lo. */
-              <div style={{ background:GRAD_HERO, borderRadius:'20px', padding:'36px', display:'flex', alignItems:'center', gap:'36px', flexWrap:'wrap', boxShadow:'0 12px 40px rgba(107,30,42,0.35)', border:`1px solid ${DA.warmBurgundy}` }}>
+              <div className="hero-destaque" style={{ background:GRAD_HERO, borderRadius:'20px', padding:'36px', display:'flex', alignItems:'center', gap:'36px', flexWrap:'wrap', boxShadow:'0 12px 40px rgba(107,30,42,0.35)', border:`1px solid ${DA.warmBurgundy}` }}>
                 {destaqueSemLeitura && (
                   <div style={{ position:'relative', flexShrink:0, cursor:'pointer' }}
                     onClick={() => { const src = destaqueSemLeitura.fotoUsuario || destaqueSemLeitura.capa; if (src) setFotoModal({ src, titulo: destaqueSemLeitura.titulo }); }}>
