@@ -1,6 +1,10 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { describe, it, expect, vi } from 'vitest';
-import { Recomendacoes } from '../components/Recomendacoes';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { Recomendacoes, limparCacheRecomendacoes } from '../components/Recomendacoes';
+
+// O cache da sessão vive fora do componente; sem limpar, um teste herdaria o
+// resultado do anterior.
+beforeEach(() => limparCacheRecomendacoes());
 
 // Relato: "não consigo adicionar diretamente dos recomendados". Havia só um link
 // para a aba Adicionar, onde a pessoa redigitava título, autor e gênero que já
@@ -78,5 +82,106 @@ describe('Recomendacoes: adicionar direto do card', () => {
     montar();
     await waitFor(() => expect(screen.getByText(/Recomendado para você/)).toBeInTheDocument());
     expect(screen.queryByText('+ Quero ler')).toBeNull();
+  });
+});
+
+// --- Revisão de 2026-11-06 ---------------------------------------------------
+
+const json = (corpo, status = 200) =>
+  new Response(JSON.stringify(corpo), { status, headers: { 'Content-Type': 'application/json' } });
+const volumes = (n) => ({
+  items: Array.from({ length: n }, (_, i) => ({ id: `v${i}`, volumeInfo: { title: `Livro ${i}`, authors: [`Autor ${i}`] } })),
+});
+
+describe('Recomendacoes: falha, páginas e cache', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('busca fora do ar mostra erro com "Tentar de novo", não "nada encontrado"', async () => {
+    let fora = true;
+    vi.stubGlobal('fetch', vi.fn(async () => (fora ? json({}, 429) : json(volumes(3)))));
+    montar({ onAdicionarLivro: vi.fn() });
+
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/não respondeu/), { timeout: 3000 });
+    expect(screen.queryByText('Nada novo encontrado')).toBeNull();
+
+    fora = false;
+    fireEvent.click(screen.getByText('Tentar de novo'));
+    await waitFor(() => expect(screen.getAllByText('+ Quero ler')).toHaveLength(3), { timeout: 3000 });
+  });
+
+  it('"Outras sugestões" mostra a página seguinte, não a mesma lista', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => json(volumes(12))));
+    montar();
+
+    await waitFor(() => expect(screen.getByText(/Outras sugestões \(1\/2\)/)).toBeInTheDocument(), { timeout: 3000 });
+    const primeira = screen.getAllByRole('img').map(i => i.getAttribute('alt'));
+    fireEvent.click(screen.getByText(/Outras sugestões/));
+    const segunda = screen.getAllByRole('img').map(i => i.getAttribute('alt'));
+
+    expect(segunda).toHaveLength(6);
+    expect(segunda.some(t => primeira.includes(t))).toBe(false);
+  });
+
+  it('voltar à aba usa o cache em vez de buscar de novo', async () => {
+    const espiao = vi.fn(async () => json(volumes(3)));
+    vi.stubGlobal('fetch', espiao);
+
+    const { unmount } = montar();
+    await waitFor(() => expect(screen.getByAltText('Livro 0')).toBeInTheDocument(), { timeout: 3000 });
+    const chamadas = espiao.mock.calls.length;
+    unmount();
+
+    montar();
+    expect(screen.getByAltText('Livro 0')).toBeInTheDocument();
+    expect(espiao.mock.calls.length).toBe(chamadas);
+  });
+
+  it('livro adicionado em outra visita não volta do cache', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => json(volumes(3))));
+    const { unmount } = montar();
+    await waitFor(() => expect(screen.getByAltText('Livro 0')).toBeInTheDocument(), { timeout: 3000 });
+    unmount();
+
+    // A estante ganhou "Livro 0" em quero-ler: não muda o perfil, mas o livro sai.
+    render(<Recomendacoes
+      livros={[...estante, { id: 2, titulo: 'Livro 0', status: 'quero-ler' }]}
+      DA={DA} GRAD_BTN="" googleBooksKey="k" />);
+    expect(screen.queryByAltText('Livro 0')).toBeNull();
+    expect(screen.getByAltText('Livro 1')).toBeInTheDocument();
+  });
+
+  it('mostra a sinopse sem as tags HTML da Google Books', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => json({
+      items: [{ id: 's', volumeInfo: { title: 'Com sinopse', authors: ['X'], description: '<p>Uma <b>história</b> curta.</p>' } }],
+    })));
+    montar();
+    await waitFor(() => expect(screen.getByText('Uma história curta.')).toBeInTheDocument(), { timeout: 3000 });
+  });
+
+  it('com o botão no card, some o link redundante para a aba Adicionar', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => json(volumes(2))));
+    montar({ onAdicionarLivro: vi.fn(), onIrParaAdicionar: vi.fn() });
+    await waitFor(() => expect(screen.getAllByText('+ Quero ler').length).toBe(2), { timeout: 3000 });
+    expect(screen.queryByText('Adicione à sua estante')).toBeNull();
+  });
+});
+
+describe('Recomendacoes: autores parecidos pela B.IA', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('não chama o modelo ao abrir a aba — só quando a pessoa pede', async () => {
+    const espiao = vi.fn(async () => json(volumes(2)));
+    vi.stubGlobal('fetch', espiao);
+    montar();
+    await waitFor(() => expect(screen.getByText('✨ Pedir à B.IA')).toBeInTheDocument(), { timeout: 3000 });
+    expect(espiao.mock.calls.some(([u]) => String(u).includes('/api/bia'))).toBe(false);
+  });
+
+  it('sem login, explica em vez de quebrar', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => json(volumes(2))));
+    montar();
+    await waitFor(() => expect(screen.getByText('✨ Pedir à B.IA')).toBeInTheDocument(), { timeout: 3000 });
+    fireEvent.click(screen.getByText('✨ Pedir à B.IA'));
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/conta Google/));
   });
 });

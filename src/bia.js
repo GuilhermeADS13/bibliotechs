@@ -6,7 +6,7 @@
 // pronto e só precisa escrever a resposta.
 
 import { calcularEstatisticas, MESES_LONGOS } from './estatisticas';
-import { perfilLeitor, buscarAutor } from './recomendacoes';
+import { perfilLeitor, buscarAutor, normalizar } from './recomendacoes';
 import { contextoWikipedia } from './wikipedia';
 
 // `normalizarTexto` é declarado mais abaixo (function declaration, içada).
@@ -396,6 +396,91 @@ export function contextoDeAutores(referencia, jaNaEstante = []) {
   );
 
   return linhas.join('\n');
+}
+
+// --- AUTORES PARECIDOS NA ABA DE RECOMENDAÇÕES -----------------------------
+//
+// A mesma divisão do chat: o modelo sugere QUEM (semelhança literária é onde
+// ele é melhor que qualquer API), a Google Books confirma que a pessoa existe e
+// diz QUAIS obras são dela. Nome que a busca não confirma não chega à tela, e
+// nenhum título sai da memória do modelo.
+
+const MAX_AUTORES_SUGERIDOS = 5;
+
+/**
+ * Lê a resposta do modelo no formato "Nome | motivo", uma por linha.
+ *
+ * Tolerante de propósito: mesmo pedindo só as linhas, o modelo às vezes abre
+ * com uma frase, numera ou põe o nome em negrito. Linha sem "|" é descartada.
+ */
+export function lerAutoresSugeridos(texto, excluir = []) {
+  const fora = new Set(excluir.map(normalizar).filter(Boolean));
+  const vistos = new Set();
+  const lista = [];
+
+  for (const linha of String(texto || '').split(/\r?\n/)) {
+    const limpa = linha.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, '').replace(/\*\*/g, '').trim();
+    const corte = limpa.indexOf('|');
+    if (corte < 0) continue;
+    const nome = limpa.slice(0, corte).trim();
+    const motivo = limpa.slice(corte + 1).trim();
+    const chave = normalizar(nome);
+    if (!chave || nome.length > 60 || !motivo) continue;
+    if (vistos.has(chave) || fora.has(chave)) continue;
+    vistos.add(chave);
+    lista.push({ nome, motivo });
+  }
+  return lista;
+}
+
+/**
+ * Autores parecidos com os favoritos da pessoa, confirmados na Google Books.
+ *
+ * Só roda quando a pessoa pede (botão), nunca ao abrir a aba: custa uma
+ * chamada ao modelo e uma busca por autor sugerido.
+ *
+ * `perguntar` é injetável só para os testes não dependerem do Firebase.
+ */
+export async function sugerirAutoresParecidos(livros, { googleBooksKey = '', sinal, perguntar = perguntarAoModelo } = {}) {
+  const perfil = perfilLeitor(livros);
+  const referencias = perfil.autoresFavoritos.slice(0, 3);
+  if (referencias.length === 0) return { autores: [], erro: 'sem-autores' };
+
+  const conhecidos = [...new Set(
+    (Array.isArray(livros) ? livros : [])
+      .flatMap(l => String(l?.autor || '').split(',').map(a => a.trim()))
+      .filter(Boolean)
+  )];
+
+  const contexto = [
+    `Autores favoritos (pela nota que a pessoa deu): ${referencias
+      .map(a => (a.exemplo ? `${a.nome} (leu "${a.exemplo}")` : a.nome)).join('; ')}`,
+    `Autores que a pessoa já tem na estante: ${conhecidos.join(', ')}`,
+  ].join('\n');
+
+  const pergunta = [
+    `Indique ${MAX_AUTORES_SUGERIDOS} autores parecidos com os favoritos acima que NÃO estejam na estante.`,
+    'Responda SOMENTE com as linhas, sem introdução nem fecho, neste formato exato:',
+    'Nome do autor | por que combina, em até 15 palavras',
+    'Só autores de existência conhecida. Não cite títulos de livros.',
+  ].join('\n');
+
+  const { texto, erro } = await perguntar(pergunta, contexto, { sinal });
+  if (!texto) return { autores: [], erro: erro || 'resposta-vazia' };
+
+  const sugeridos = lerAutoresSugeridos(texto, conhecidos).slice(0, MAX_AUTORES_SUGERIDOS);
+  const jaLidos = new Set(conhecidos.map(normalizar));
+
+  const confirmados = await Promise.all(sugeridos.map(async (s) => {
+    const achado = await buscarAutor(s.nome, { googleBooksKey, sinal });
+    if (!achado || achado.obras.length === 0) return null;
+    // O nome canônico pode revelar que era alguém da estante escrito de outro jeito.
+    if (jaLidos.has(normalizar(achado.nome))) return null;
+    return { nome: achado.nome, motivo: s.motivo, obras: achado.obras.slice(0, 3) };
+  }));
+
+  const autores = confirmados.filter(Boolean);
+  return autores.length > 0 ? { autores, erro: null } : { autores: [], erro: 'nada-confirmado' };
 }
 
 /** Formata os dados do Google Books para entrar no contexto do modelo. */

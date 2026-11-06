@@ -25,10 +25,12 @@ const TIMEOUT_MS = 8000;
  * O formato de saída é o mesmo das sugestões da Google Books, para o formulário
  * não precisar saber de onde veio.
  */
-export async function buscarNaOpenLibrary({ titulo = '', autor = '', limite = 6 } = {}) {
+export async function buscarNaOpenLibrary({ titulo = '', autor = '', assunto = '', limite = 6 } = {}) {
   const partes = [];
   if (titulo.trim().length >= 2) partes.push(`title=${encodeURIComponent(titulo.trim())}`);
   if (autor.trim().length >= 2) partes.push(`author=${encodeURIComponent(autor.trim())}`);
+  // Usado pelas recomendações quando a Google Books cai: busca por gênero.
+  if (assunto.trim().length >= 2) partes.push(`subject=${encodeURIComponent(assunto.trim())}`);
   if (partes.length === 0) return [];
 
   const url = `${BUSCA}?${partes.join('&')}`

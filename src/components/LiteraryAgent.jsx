@@ -357,6 +357,10 @@ export function LiteraryAgent({
         resposta = `Pra indicar direito eu preciso saber do que você gosta, e ainda não tem nada marcado como lido aí. Marca um livro que você já terminou e dá uma nota — a partir daí eu acerto bem mais.`;
       } else if (motivo === 'sem-generos') {
         resposta = `Seus livros lidos estão sem gênero e sem autor preenchidos. Com esses campos vazios eu só chutaria. Completa na aba Adicionar que eu volto a indicar.`;
+      } else if (motivo === 'sem-favoritos') {
+        resposta = `Pelas notas que você deu, nenhuma leitura até aqui te conquistou de verdade — e indicar parecido com o que não agradou seria um tiro no pé. Dá nota 4 ou 5 pros livros de que você gostou que eu busco nessa linha.`;
+      } else if (motivo === 'falha-busca') {
+        resposta = `A busca de livros não respondeu agora — pode ser o limite diário da Google Books ou a conexão. Tenta de novo daqui a pouco.`;
       } else if (recomendacoes.length === 0) {
         resposta = `Não achei nada fora do que você já tem. Pode ser limite da busca nos gêneros que você lê — ou você já passou por eles.`;
       } else {
