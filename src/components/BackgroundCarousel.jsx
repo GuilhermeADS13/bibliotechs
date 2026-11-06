@@ -1,111 +1,61 @@
-import { useState, useEffect, useRef } from 'react';
-
-const IMAGES = [
-  '/carousel/img1.jpg',
-  '/carousel/img2.jpg',
-  '/carousel/img3.jpg',
-];
+import { useState, useEffect } from 'react';
+import { FOTOS } from '../fotosFundo';
 
 const DISPLAY = 9000;  // 9s por imagem
 const FADE    = 2500;  // 2.5s de dissolve
 
-const layerBase = {
-  position: 'fixed',
-  inset: 0,
-  zIndex: -2,
-  backgroundSize: 'cover',
-  backgroundPosition: 'center',
-  backgroundRepeat: 'no-repeat',
-  willChange: 'opacity, transform',
-};
-
+/**
+ * Fundo da página: as fotos como luz de cor, bem desfocadas.
+ *
+ * Antes eram mostradas nítidas com `cover` e zoom animado. Como são retratos
+ * em pé numa tela larga, o `cover` ampliava e cortava — o que aparecia atrás
+ * dos painéis era um pedaço gigante do rosto. Para ver as fotos de verdade
+ * existe o porta-retrato do Início (PortaRetrato.jsx); aqui elas só dão o tom.
+ */
 export function BackgroundCarousel() {
-  const [activeSlot, setActiveSlot] = useState(0);
-  const [slots, setSlots]           = useState([IMAGES[0], IMAGES[1]]);
-  const idxRef                      = useRef(0);
+  const [atual, setAtual] = useState(0);
 
   useEffect(() => {
-    const tick = () => {
-      const nextIdx  = (idxRef.current + 1) % IMAGES.length;
-      idxRef.current = nextIdx;
-      const nextSlot = activeSlot === 0 ? 1 : 0;
-
-      setSlots(prev => {
-        const s = [...prev];
-        s[nextSlot] = IMAGES[nextIdx];
-        return s;
-      });
-
-      setTimeout(() => setActiveSlot(nextSlot), 80);
-    };
-
-    const timer = setInterval(tick, DISPLAY + FADE);
+    const timer = setInterval(() => setAtual(i => (i + 1) % FOTOS.length), DISPLAY + FADE);
     return () => clearInterval(timer);
-  }, [activeSlot]);
+  }, []);
 
   return (
     <>
-      {/* Camada A */}
-      <div className="fundo-foto" style={{
-        ...layerBase,
-        backgroundImage: `url(${slots[0]})`,
-        opacity: activeSlot === 0 ? 1 : 0,
-        transition: `opacity ${FADE}ms cubic-bezier(0.45, 0, 0.55, 1)`,
-        animation: `kb-a ${DISPLAY + FADE}ms ease-in-out infinite`,
-      }} />
+      {FOTOS.map((f, i) => (
+        <div key={f.src} aria-hidden="true" className="fundo-foto" style={{
+          position: 'fixed',
+          // Sangra além da tela: o desfoque apaga as bordas da imagem, e sem
+          // essa sobra apareceria um contorno claro nos cantos.
+          inset: '-60px',
+          zIndex: -2,
+          backgroundImage: `url(${f.src})`,
+          backgroundSize: 'cover',
+          backgroundPosition: f.foco,
+          filter: 'blur(36px) saturate(1.15) brightness(0.62)',
+          opacity: i === atual ? 1 : 0,
+          transition: `opacity ${FADE}ms ease`,
+        }} />
+      ))}
 
-      {/* Camada B */}
-      <div className="fundo-foto" style={{
-        ...layerBase,
-        backgroundImage: `url(${slots[1]})`,
-        opacity: activeSlot === 1 ? 1 : 0,
-        transition: `opacity ${FADE}ms cubic-bezier(0.45, 0, 0.55, 1)`,
-        animation: `kb-b ${DISPLAY + FADE}ms ease-in-out infinite`,
-      }} />
-
-      {/* Véu da coluna de conteúdo: escurece e desfoca só onde ficam os
-          painéis (1100px no centro), para o texto ler melhor. As bordas da
-          tela seguem com as fotos nítidas — a máscara é que faz a transição. */}
-      <div aria-hidden="true" className="veu-conteudo" style={{
-        position: 'fixed', inset: 0, zIndex: -1, pointerEvents: 'none',
-        background: 'rgba(30,18,12,0.42)',
-        backdropFilter: 'blur(7px) saturate(0.9)',
-        WebkitBackdropFilter: 'blur(7px) saturate(0.9)',
-        maskImage: 'linear-gradient(90deg, transparent 0, #000 calc(50% - 520px), #000 calc(50% + 520px), transparent 100%)',
-        WebkitMaskImage: 'linear-gradient(90deg, transparent 0, #000 calc(50% - 520px), #000 calc(50% + 520px), transparent 100%)',
-      }} />
-
-      {/* ── Overlay principal: escurece o fundo sem matar a imagem ── */}
       {/* Gradiente topo → garante header legível */}
-      <div style={{
+      <div aria-hidden="true" style={{
         position: 'fixed', top: 0, left: 0, right: 0,
         height: '110px', zIndex: -1, pointerEvents: 'none',
         background: 'linear-gradient(to bottom, rgba(44,26,20,0.88) 0%, transparent 100%)',
       }} />
 
       {/* Gradiente base → ancora o rodapé */}
-      <div style={{
+      <div aria-hidden="true" style={{
         position: 'fixed', bottom: 0, left: 0, right: 0,
         height: '140px', zIndex: -1, pointerEvents: 'none',
         background: 'linear-gradient(to top, rgba(44,26,20,0.78) 0%, transparent 100%)',
       }} />
 
       <style>{`
-        @keyframes kb-a {
-          0%   { transform: scale(1.00) translate(0px, 0px);    }
-          100% { transform: scale(1.07) translate(-16px, -5px); }
-        }
-        @keyframes kb-b {
-          0%   { transform: scale(1.05) translate(12px, 3px); }
-          100% { transform: scale(1.00) translate(0px,  0px); }
-        }
-        /* Quem pede menos movimento no sistema vê as fotos paradas. */
+        /* Quem pede menos movimento no sistema vê a troca sem dissolve. */
         @media (prefers-reduced-motion: reduce) {
-          .fundo-foto { animation: none !important; transition: none !important; }
-        }
-        /* No celular a coluna é a tela toda: o véu cobre de ponta a ponta. */
-        @media (max-width: 720px) {
-          .veu-conteudo { mask-image: none !important; -webkit-mask-image: none !important; }
+          .fundo-foto { transition: none !important; }
         }
       `}</style>
     </>

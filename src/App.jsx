@@ -15,6 +15,8 @@ import { loginGoogle, completeRedirectLogin } from './login';
 import { CapaLivro } from './components/CapaLivro';
 import { progressoDe } from './leitura';
 import { ImportarEstante } from './components/ImportarEstante';
+import { PortaRetrato } from './components/PortaRetrato';
+import { TourBia, lerPreferenciaTour, gravarPreferenciaTour } from './components/TourBia';
 import { LiteraryAgent } from './components/LiteraryAgent';
 import { Estatisticas } from './components/Estatisticas';
 import { BiaAvatar } from './components/BiaAvatar';
@@ -53,12 +55,18 @@ const ABAS = [
   { key:'love', label:'I ❤️ YOU', emoji:'💝', special:true },
 ];
 
-function FotoModal({ src, titulo, onFechar }) {
+// `proporcao` (opcional): mostra a foto nessa proporção, cortando pelo topo.
+// É o que tira a faixa do Instagram das fotos do porta-retrato também na
+// tela cheia, sem mexer nos arquivos.
+function FotoModal({ src, titulo, proporcao, onFechar }) {
+  const recorte = proporcao
+    ? { width:`min(100%, calc(80vh * ${proporcao}))`, aspectRatio:String(proporcao), objectFit:'cover', objectPosition:'50% 100%', margin:'0 auto' }
+    : { width:'100%', maxHeight:'80vh', objectFit:'contain' };
   return (
     <div style={{ position:'fixed', inset:0, background:'rgba(44,26,20,0.85)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:2000, padding:'20px', backdropFilter:'blur(8px)', WebkitBackdropFilter:'blur(8px)' }} onClick={onFechar}>
-      <div style={{ position:'relative', maxWidth:'500px', width:'100%' }} onClick={e=>e.stopPropagation()}>
-        <img src={src} alt={titulo} style={{ width:'100%', maxHeight:'80vh', objectFit:'contain', borderRadius:'16px', boxShadow:'0 32px 80px rgba(0,0,0,0.5)', display:'block' }} />
-        <p style={{ textAlign:'center', color:'rgba(245,240,224,0.8)', fontSize:'14px', fontWeight:'600', marginTop:'12px' }}>{titulo}</p>
+      <div style={{ position:'relative', maxWidth: proporcao ? '640px' : '500px', width:'100%' }} onClick={e=>e.stopPropagation()}>
+        <img src={src} alt={titulo || 'Foto'} style={{ ...recorte, borderRadius:'16px', boxShadow:'0 32px 80px rgba(0,0,0,0.5)', display:'block' }} />
+        {titulo && <p style={{ textAlign:'center', color:'rgba(245,240,224,0.8)', fontSize:'14px', fontWeight:'600', marginTop:'12px' }}>{titulo}</p>}
         <button onClick={onFechar} style={{ position:'absolute', top:'-14px', right:'-14px', background:DA.cream, border:'none', borderRadius:'50%', width:'34px', height:'34px', cursor:'pointer', fontWeight:'800', fontSize:'16px', color:DA.espresso, boxShadow:'0 4px 12px rgba(131,84,30,0.18)', display:'flex', alignItems:'center', justifyContent:'center' }}>✕</button>
       </div>
     </div>
@@ -73,6 +81,24 @@ export default function App() {
   const [filtroStatus, setFiltroStatus] = useState('todos');
   const [modalResenha, setModalResenha] = useState(null);
   const [buscaInicial, setBuscaInicial] = useState(null);
+  // Tour da B.IA: abre na primeira visita, ou sempre se a pessoa pediu.
+  const [prefTour, setPrefTour] = useState(lerPreferenciaTour);
+  const [passoTour, setPassoTour] = useState(() => {
+    const p = lerPreferenciaTour();
+    return !p.visto || p.sempre ? 0 : null;
+  });
+  const fecharTour = () => {
+    const nova = { ...prefTour, visto: true };
+    setPrefTour(nova);
+    gravarPreferenciaTour(nova);
+    setPassoTour(null);
+    setAba('inicio');
+  };
+  const mudarSempreTour = (sempre) => {
+    const nova = { ...prefTour, sempre, visto: true };
+    setPrefTour(nova);
+    gravarPreferenciaTour(nova);
+  };
   const [fotoModal, setFotoModal]       = useState(null);
   const [metaAnual, setMetaAnual]       = useState(() => Number(localStorage.getItem('da-meta') || 12));
   const [editandoMeta, setEditandoMeta] = useState(false);
@@ -210,6 +236,13 @@ export default function App() {
           .nav-desktop { display: none !important; }
           .hamburger-btn { display: flex !important; }
         }
+        /* Início: porta-retrato à esquerda, destaque do livro à direita. */
+        .inicio-topo { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 20px; align-items: stretch; }
+        .inicio-topo > .hero-destaque, .inicio-topo > .estante-vazia { align-self: stretch; }
+        @media (max-width: 760px) {
+          .inicio-topo { grid-template-columns: 1fr; }
+          .porta-retrato { width: 100%; max-width: 340px; margin: 0 auto !important; }
+        }
         /* Celular: o destaque do último livro empilhava uma capa de 130x185
            sobre o texto e ocupava meia tela antes de qualquer outra coisa. */
         @media(max-width:520px) {
@@ -323,6 +356,9 @@ export default function App() {
         {/* INÍCIO */}
         {aba === 'inicio' && (
           <div className="page-content" style={{ display:'flex', flexDirection:'column', gap:'20px' }}>
+            {/* As fotos inteiras e nítidas, ao lado do destaque. */}
+            <div className="inicio-topo">
+            <PortaRetrato onAbrir={(foto) => setFotoModal({ src: foto.src, titulo: '', proporcao: foto.proporcao })} />
             {ultimoLido ? (
               <div className="hero-destaque" style={{ background:GRAD_HERO, borderRadius:'20px', padding:'36px', display:'flex', alignItems:'center', gap:'36px', flexWrap:'wrap', boxShadow:'0 12px 40px rgba(107,30,42,0.35)', border:`1px solid ${DA.warmBurgundy}` }}>
                 <div style={{ position:'relative', flexShrink:0 }}>
@@ -346,7 +382,7 @@ export default function App() {
                 </div>
               </div>
             ) : estadoDaEstante(livros, ultimoLido) === 'vazia' ? (
-              <div style={{ background:GLASS_PANEL_STRONG, borderRadius:'20px', padding:'52px 48px', textAlign:'center', border:'2px dashed rgba(196,154,108,0.5)', boxShadow:PANEL_SHADOW, backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)' }}>
+              <div className="estante-vazia" style={{ background:GLASS_PANEL_STRONG, borderRadius:'20px', padding:'52px 48px', textAlign:'center', border:'2px dashed rgba(196,154,108,0.5)', boxShadow:PANEL_SHADOW, backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)' }}>
                 <div style={{ fontSize:'52px', marginBottom:'14px' }}>📚</div>
                 <p style={{ color:DA.espresso, fontSize:'17px', fontWeight:'700', marginBottom:'6px' }}>Sua estante está vazia</p>
                 <p style={{ color:DA.espresso, fontSize:'14px', marginBottom:'22px', opacity:0.92 }}>Adicione seu primeiro livro para começar!</p>
@@ -385,6 +421,7 @@ export default function App() {
                 </div>
               </div>
             )}
+            </div>
 
             <Stats lidos={lidos.length} lendo={lendoAgora.length} queroLer={queroLer.length} abandonei={abandonei.length} DA={DA} GRAD_BTN={GRAD_BTN} />
 
@@ -443,6 +480,18 @@ export default function App() {
                 </div>
               </div>
             )}
+
+            {/* O tour não abre sozinho depois da primeira vez: daqui ele volta
+                quando a pessoa quiser. */}
+            <button onClick={() => setPassoTour(0)} style={{
+              alignSelf:'center', display:'flex', alignItems:'center', gap:'10px',
+              background:'rgba(251,247,238,0.92)', border:'1px solid rgba(196,154,108,0.5)', borderRadius:'999px',
+              padding:'6px 16px 6px 6px', cursor:'pointer', fontSize:'13px', fontWeight:'700', color:DA.espresso,
+              boxShadow:'0 6px 18px rgba(20,10,6,0.18)',
+            }}>
+              <BiaAvatar size={30} />
+              Rever o tour com a B.IA
+            </button>
           </div>
         )}
 
@@ -698,7 +747,20 @@ export default function App() {
         <ResenhaModal livro={modalResenha} DA={DA} GRAD_BTN={GRAD_BTN} onSalvar={salvarResenha} onFechar={() => setModalResenha(null)} />
       )}
       {fotoModal && (
-        <FotoModal src={fotoModal.src} titulo={fotoModal.titulo} onFechar={() => setFotoModal(null)} />
+        <FotoModal src={fotoModal.src} titulo={fotoModal.titulo} proporcao={fotoModal.proporcao} onFechar={() => setFotoModal(null)} />
+      )}
+
+      {passoTour !== null && (
+        <TourBia
+          passo={passoTour}
+          onPasso={setPassoTour}
+          onFechar={fecharTour}
+          onIrPara={(destino) => { setAba(destino); window.scrollTo({ top: 0 }); }}
+          sempre={prefTour.sempre}
+          onSempre={mudarSempreTour}
+          DA={DA}
+          GRAD_BTN={GRAD_BTN}
+        />
       )}
 
       {/* AGENTE LITERÁRIO FLUTUANTE */}

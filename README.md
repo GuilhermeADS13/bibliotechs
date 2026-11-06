@@ -27,8 +27,12 @@ Em produção: **[bibliotechs.vercel.app](https://bibliotechs.vercel.app)**
 - 📥 Importação do Goodreads ou de planilha própria (CSV)
 - 🏷️ Cadastro pelo código de barras (câmera no Chrome do Android) ou pelo ISBN
   digitado
+- 🖼️ Porta-retrato no Início com as fotos inteiras; no fundo, só a cor delas
 
 ### B.IA — a agente literária
+
+- 🧭 Tour pelo app apresentado por ela — abre na primeira visita, volta pelo
+  botão no Início, e pode abrir sempre se a pessoa quiser
 
 - 💬 Conversa de verdade, com memória dos turnos anteriores
 - 🗓️ Histórico guardado por dia
@@ -71,7 +75,7 @@ gratuito.
   da Luma, do SAS-AtendimentoPsicologico). Variáveis `LLM_FALLBACK_*` no
   `.env.example`
 - Vercel — hospedagem e função serverless
-- Vitest + Testing Library + MSW — 400 testes
+- Vitest + Testing Library + MSW — 408 testes
 
 Os estilos são inline e CSS próprio (`src/index.css`); o Tailwind está no
 pipeline mas praticamente não é usado pelos componentes.
