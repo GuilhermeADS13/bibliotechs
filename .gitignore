@@ -20,3 +20,7 @@ r.json
 big.json
 diag.txt
 ctx.txt
+
+# Configuracao local de editor/agente: caminhos e preferencias de cada maquina
+.vscode/
+.claude/settings.json
