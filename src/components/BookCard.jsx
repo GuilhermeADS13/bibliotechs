@@ -1,6 +1,82 @@
 import React, { useState } from 'react';
 import { StarRating } from './StarRating';
 import { CapaLivro } from './CapaLivro';
+import { progressoDe, duracaoDe } from '../leitura';
+
+const ddmm = (iso) => (iso ? iso.split('-').reverse().slice(0, 2).join('/') : '');
+
+/**
+ * Progresso do livro em leitura: barra, "+10 págs." e a página digitada.
+ * O "+10" existe porque atualizar o progresso precisa custar um toque — se
+ * custar abrir um formulário, ninguém atualiza e o ritmo medido não vale nada.
+ */
+function Progresso({ livro, DA, onAtualizar }) {
+  const [editando, setEditando] = useState(false);
+  const [valor, setValor] = useState('');
+  const p = progressoDe(livro);
+  const total = p?.total || 0;
+  const atual = p?.paginaAtual || 0;
+
+  const salvar = (pagina) => {
+    const n = Math.max(0, Number.parseInt(pagina, 10) || 0);
+    onAtualizar({ paginaAtual: total ? Math.min(n, total) : n });
+    setEditando(false);
+  };
+  const parar = (e) => e.stopPropagation();
+
+  const botao = {
+    fontSize: '11px', fontWeight: '800', padding: '4px 8px', borderRadius: '7px',
+    border: `1px solid ${DA.forestGreen}`, background: 'white', color: DA.forestGreen,
+    cursor: 'pointer', fontFamily: 'inherit',
+  };
+
+  return (
+    <div onClick={parar} style={{ marginTop: '8px', marginBottom: '6px' }}>
+      {total > 0 && (
+        <div aria-hidden="true" style={{ height: '6px', borderRadius: '999px', background: `${DA.forestGreen}1f`, overflow: 'hidden', marginBottom: '5px' }}>
+          <div style={{ width: `${p.pct}%`, height: '100%', background: DA.forestGreen, borderRadius: '999px', transition: 'width .3s ease' }} />
+        </div>
+      )}
+      <p style={{ fontSize: '11px', color: DA.walnut, marginBottom: '6px' }}>
+        {atual > 0
+          ? <>Página {atual}{total ? ` de ${total} · ${p.pct}%` : ''}</>
+          : total ? `${total} páginas · ainda não marcou a página` : 'Marque em que página está'}
+        {p?.diasLendo != null && <> · {p.diasLendo === 0 ? 'começou hoje' : `há ${p.diasLendo} dia${p.diasLendo === 1 ? '' : 's'}`}</>}
+      </p>
+      {p?.previsao && (
+        <p style={{ fontSize: '11px', color: DA.forestGreen, fontWeight: '700', marginBottom: '6px' }}>
+          No seu ritmo ({p.paginasPorDia} pág./dia), termina por volta de {ddmm(p.previsao)}
+        </p>
+      )}
+
+      {editando ? (
+        <form onSubmit={e => { e.preventDefault(); salvar(valor); }} style={{ display: 'flex', gap: '6px' }}>
+          <input
+            // Sem `max`: o navegador barraria "999" com um balão nativo; aqui
+            // o valor só é ajustado ao total ao salvar.
+            type="number" min="0" autoFocus
+            aria-label="Página atual"
+            value={valor} onChange={e => setValor(e.target.value)}
+            style={{ width: '70px', padding: '4px 6px', borderRadius: '7px', border: `1px solid ${DA.warmBeige}`, fontSize: '12px' }}
+          />
+          <button type="submit" style={botao}>Salvar</button>
+          <button type="button" onClick={() => setEditando(false)} style={{ ...botao, borderColor: DA.warmBeige, color: DA.walnut }}>Cancelar</button>
+        </form>
+      ) : p?.terminou ? (
+        <button onClick={() => onAtualizar({ status: 'lido' })} style={{ ...botao, background: DA.forestGreen, color: 'white' }}>
+          Terminei — marcar como lido
+        </button>
+      ) : (
+        <div style={{ display: 'flex', gap: '6px' }}>
+          <button onClick={() => salvar(atual + 10)} style={botao} aria-label="Avançar 10 páginas">+10 págs.</button>
+          <button onClick={() => { setValor(String(atual || '')); setEditando(true); }} style={{ ...botao, borderColor: DA.warmBeige, color: DA.walnut }}>
+            Estou na página…
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 const STATUS_OPTS = [
   { value: 'lendo',     label: '📖 Lendo' },
@@ -227,6 +303,17 @@ export function BookCard({ livro, refFoto, DA, GRAD_BTN, onAtualizar, onRemover,
         }}>
           {livro.autor || 'Autor desconhecido'}
         </p>
+        {livro.serie && (
+          <p style={{ fontSize: '11px', color: DA.copper, fontWeight: '700', marginBottom: '6px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {livro.serie}{Number(livro.volume) > 0 ? `, volume ${livro.volume}` : ''}
+          </p>
+        )}
+        {livro.status === 'lendo' && <Progresso livro={livro} DA={DA} onAtualizar={onAtualizar} />}
+        {duracaoDe(livro) !== null && (
+          <p style={{ fontSize: '11px', color: DA.walnut, opacity: 0.85, marginBottom: '6px' }}>
+            Lido em {duracaoDe(livro) || 1} dia{duracaoDe(livro) > 1 ? 's' : ''}
+          </p>
+        )}
         <StarRating rating={livro.nota} DA={DA} />
         {livro.resenha && (
           <p style={{
@@ -235,6 +322,11 @@ export function BookCard({ livro, refFoto, DA, GRAD_BTN, onAtualizar, onRemover,
             lineHeight: 1.5,
           }}>
             "{livro.resenha}"
+          </p>
+        )}
+        {livro.trechos?.length > 0 && (
+          <p style={{ fontSize: '10px', color: DA.walnut, marginTop: '6px', fontWeight: '700' }}>
+            ❝ {livro.trechos.length} trecho{livro.trechos.length > 1 ? 's' : ''} marcado{livro.trechos.length > 1 ? 's' : ''}
           </p>
         )}
         {livro.genero && (

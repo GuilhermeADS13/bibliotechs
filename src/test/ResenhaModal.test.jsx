@@ -25,7 +25,7 @@ describe('ResenhaModal e a foto do livro', () => {
   it('não mexe na foto quando ninguém mexeu nela', () => {
     // temFoto true, fotoUsuario ausente: o caso exato da foto que ainda não chegou.
     const onSalvar = salvar({ id: 1, titulo: 'Duna', temFoto: true, resenha: '', nota: 0 });
-    expect(onSalvar).toHaveBeenCalledWith('', 0, undefined);
+    expect(onSalvar).toHaveBeenCalledWith('', 0, undefined, expect.any(Object));
   });
 
   it('não mexe na foto nem quando o livro já a trouxe carregada', () => {
@@ -47,6 +47,42 @@ describe('ResenhaModal e a foto do livro', () => {
     const onSalvar = vi.fn();
     render(<ResenhaModal livro={{ id: 1, titulo: 'Duna', resenha: 'boa', nota: 4 }} DA={DA} GRAD_BTN="" onSalvar={onSalvar} onFechar={() => {}} />);
     fireEvent.click(screen.getByText(/Salvar/i));
-    expect(onSalvar).toHaveBeenCalledWith('boa', 4, undefined);
+    expect(onSalvar).toHaveBeenCalledWith('boa', 4, undefined, expect.any(Object));
+  });
+});
+
+describe('ResenhaModal: trechos e detalhes da leitura', () => {
+  const abrir = (livro) => {
+    const onSalvar = vi.fn();
+    render(<ResenhaModal livro={{ id: 1, titulo: 'Duna', ...livro }} DA={DA} GRAD_BTN="" onSalvar={onSalvar} onFechar={() => {}} />);
+    return onSalvar;
+  };
+  const salvarAgora = () => fireEvent.click(screen.getByRole('button', { name: /^💾 Salvar$/ }));
+
+  it('guarda um trecho com a página e manda junto ao salvar', () => {
+    const onSalvar = abrir();
+    fireEvent.change(screen.getByLabelText('Novo trecho'), { target: { value: 'O medo mata a mente.' } });
+    fireEvent.change(screen.getByLabelText('Página do trecho'), { target: { value: '12' } });
+    fireEvent.click(screen.getByText('Guardar trecho'));
+    expect(screen.getByText(/O medo mata a mente/)).toBeInTheDocument();
+    salvarAgora();
+    expect(onSalvar.mock.calls[0][3].trechos).toEqual([{ texto: 'O medo mata a mente.', pagina: 12 }]);
+  });
+
+  it('remove um trecho já salvo', () => {
+    const onSalvar = abrir({ trechos: [{ texto: 'Um' }, { texto: 'Dois' }] });
+    fireEvent.click(screen.getAllByLabelText('Remover trecho')[0]);
+    salvarAgora();
+    expect(onSalvar.mock.calls[0][3].trechos).toEqual([{ texto: 'Dois' }]);
+  });
+
+  it('salva início, total de páginas, série e volume', () => {
+    const onSalvar = abrir();
+    fireEvent.change(screen.getByLabelText('Comecei em'), { target: { value: '2026-10-01' } });
+    fireEvent.change(screen.getByLabelText('Total de páginas'), { target: { value: '680' } });
+    fireEvent.change(screen.getByLabelText('Série'), { target: { value: ' Duna ' } });
+    fireEvent.change(screen.getByLabelText('Volume'), { target: { value: '1' } });
+    salvarAgora();
+    expect(onSalvar.mock.calls[0][3]).toMatchObject({ dataInicio: '2026-10-01', paginas: '680', serie: 'Duna', volume: 1 });
   });
 });

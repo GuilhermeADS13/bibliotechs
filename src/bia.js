@@ -8,6 +8,7 @@
 import { calcularEstatisticas, MESES_LONGOS } from './estatisticas';
 import { perfilLeitor, buscarAutor, normalizar } from './recomendacoes';
 import { contextoWikipedia } from './wikipedia';
+import { progressoDe, duracaoMedia, seriesEmAndamento } from './leitura';
 
 // `normalizarTexto` é declarado mais abaixo (function declaration, içada).
 
@@ -24,6 +25,8 @@ const MAX_CHARS_RESENHA = 500;
 const MAX_LIDOS_NO_CONTEXTO = 20;
 const MAX_FILA_NO_CONTEXTO = 30;
 const MAX_ABANDONADOS_NO_CONTEXTO = 15;
+const MAX_TRECHOS_NO_CONTEXTO = 10;
+const MAX_CHARS_TRECHO_NO_CONTEXTO = 280;
 
 /**
  * Token do usuário logado, ou null.
@@ -133,6 +136,30 @@ export function montarContexto(livros, ano = new Date().getFullYear()) {
   const lendo = acervo.filter(l => l?.status === 'lendo');
   if (lendo.length > 0) {
     linhas.push('', `Lendo agora: ${lendo.map(comAutor).join(', ')}`);
+    // Progresso e previsão vêm calculados (src/leitura.js): o modelo só
+    // comenta. "Vou terminar até o fim do mês?" tem resposta exata aqui.
+    for (const l of lendo) {
+      const p = progressoDe(l);
+      if (!p || !p.paginaAtual) continue;
+      const partes = [`página ${p.paginaAtual}${p.total ? ` de ${p.total} (${p.pct}%)` : ''}`];
+      if (l.dataInicio) partes.push(`começou em ${l.dataInicio}`);
+      if (p.paginasPorDia) partes.push(`ritmo de ${p.paginasPorDia} pág./dia`);
+      if (p.previsao) partes.push(`previsão de término no ritmo atual: ${p.previsao}`);
+      linhas.push(`- "${l.titulo}": ${partes.join(', ')}`);
+    }
+  }
+
+  const duracao = duracaoMedia(acervo);
+  if (duracao) {
+    linhas.push('', `Tempo médio para terminar um livro: ${duracao.dias} dia(s) (medido em ${duracao.livros} livro(s) com início e fim)`);
+  }
+
+  const series = seriesEmAndamento(acervo);
+  if (series.length > 0) {
+    linhas.push('', 'Séries interrompidas (leu até um volume; o seguinte não está na estante):');
+    for (const s of series.slice(0, 8)) {
+      linhas.push(`- ${s.serie}${s.autor ? ` (${s.autor})` : ''}: leu até o volume ${s.ultimoLido}`);
+    }
   }
 
   // A fila e as desistências não chegavam ao modelo. Sem a fila, ele indicava
@@ -176,6 +203,24 @@ export function montarContexto(livros, ano = new Date().getFullYear()) {
       const cabecalho = [`"${l.titulo}"`, `[${l.status || 'sem status'}`];
       cabecalho.push(Number(l.nota) > 0 ? `, nota ${l.nota}/5]` : ']');
       linhas.push('', `${cabecalho.join('')}: ${recorte}`);
+    }
+  }
+
+  // Trechos que a pessoa marcou: dizem o que a tocou com mais precisão que
+  // a nota — e, como as resenhas, são palavras do livro escolhidas por ela.
+  const trechos = acervo
+    .flatMap(l => (Array.isArray(l?.trechos) ? l.trechos : [])
+      .filter(t => typeof t?.texto === 'string' && t.texto.trim())
+      .map(t => ({ ...t, titulo: l.titulo })))
+    .slice(-MAX_TRECHOS_NO_CONTEXTO);
+  if (trechos.length > 0) {
+    linhas.push('', 'TRECHOS QUE A PESSOA MARCOU (citações dos livros, escolhidas por ela):');
+    for (const t of trechos) {
+      const texto = t.texto.trim();
+      const recorte = texto.length > MAX_CHARS_TRECHO_NO_CONTEXTO
+        ? `${texto.slice(0, MAX_CHARS_TRECHO_NO_CONTEXTO).trimEnd()}…`
+        : texto;
+      linhas.push(`- "${t.titulo}"${t.pagina ? `, p. ${t.pagina}` : ''}: «${recorte}»`);
     }
   }
 

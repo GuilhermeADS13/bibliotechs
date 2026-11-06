@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { calcularEstatisticas, anosDisponiveis } from '../estatisticas';
 import { Recomendacoes } from './Recomendacoes';
+import { duracaoMedia } from '../leitura';
 
 const GLASS_PANEL = 'rgba(245,240,224,0.85)';
 const GLASS_PANEL_STRONG = 'rgba(245,240,224,0.94)';
@@ -46,6 +47,7 @@ export function Estatisticas({ livros, DA, GRAD_BTN, googleBooksKey, onIrParaAdi
   // Se o ano selecionado sumir da lista (ex.: livro removido), volta para o mais recente.
   const anoAtivo = anos.includes(ano) ? ano : anos[0];
   const stats = useMemo(() => calcularEstatisticas(livros, anoAtivo), [livros, anoAtivo]);
+  const duracao = useMemo(() => duracaoMedia(livros), [livros]);
 
   const alturaBarra = (quantidade) => {
     if (!quantidade) return 5;
@@ -221,11 +223,15 @@ export function Estatisticas({ livros, DA, GRAD_BTN, googleBooksKey, onIrParaAdi
 
       {/* Hábitos gerais (toda a estante, não só o ano) */}
       <Painel titulo="🔍 Panorama da estante" DA={DA}>
-        <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '12px' }}>
+        <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: `repeat(${duracao ? 5 : 4},1fr)`, gap: '12px' }}>
           <Destaque valor={`${stats.taxaConclusao}%`} rotulo="Taxa de conclusão" sub={`${stats.lidos} de ${stats.total}`} cor={DA.teal} DA={DA} />
           <Destaque valor={`${stats.taxaAbandono}%`} rotulo="Taxa de abandono" sub={`${stats.abandonei} abandonados`} cor={DA.oxblood} DA={DA} />
           <Destaque valor={stats.notaMedia || '—'} rotulo="Nota média" sub="dos livros lidos" cor={DA.mustard} DA={DA} />
           <Destaque valor={stats.lendo} rotulo="Lendo agora" sub={`${stats.queroLer} na fila`} cor={DA.forestGreen} DA={DA} />
+          {duracao && (
+            <Destaque valor={duracao.dias} rotulo={`Dia${duracao.dias === 1 ? '' : 's'} por livro, em média`}
+              sub={`em ${duracao.livros} livro${duracao.livros > 1 ? 's' : ''} com início e fim`} cor={DA.copper} DA={DA} />
+          )}
         </div>
       </Painel>
 

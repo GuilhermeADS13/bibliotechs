@@ -331,6 +331,60 @@ export function registrarVistas(titulos, agora = Date.now()) {
   }
 }
 
+// --- "NÃO TENHO INTERESSE" -------------------------------------------------
+//
+// Dispensar tira o livro da fila para sempre (neste aparelho) e ensina pelo
+// que a pessoa recusa: autor dispensado duas vezes vai para o fim da fila.
+// Rotação sozinha só adiava o livro indesejado para a próxima volta.
+
+const CHAVE_DISPENSADAS = 'da-recs-dispensadas';
+const AUTOR_REJEITADO = 2;
+
+const primeiroAutor = (autor) => normalizar(String(autor || '').split(',')[0]);
+
+/** Map de chaveTitulo → { titulo, autor } dispensados. */
+export function lerDispensadas() {
+  try {
+    const bruto = JSON.parse(localStorage.getItem(CHAVE_DISPENSADAS) || '{}');
+    return new Map(Object.entries(bruto).filter(([, v]) => v && typeof v === 'object'));
+  } catch {
+    return new Map();
+  }
+}
+
+function gravarDispensadas(mapa) {
+  try {
+    localStorage.setItem(CHAVE_DISPENSADAS, JSON.stringify(Object.fromEntries(mapa)));
+  } catch {
+    // Sem armazenamento, o livro só some desta visita.
+  }
+}
+
+export function dispensar(livro) {
+  const chave = chaveTitulo(livro?.titulo);
+  if (!chave) return;
+  const mapa = lerDispensadas();
+  mapa.set(chave, { titulo: livro.titulo, autor: livro.autor || '' });
+  gravarDispensadas(mapa);
+}
+
+export function desfazerDispensa(titulo) {
+  const mapa = lerDispensadas();
+  if (mapa.delete(chaveTitulo(titulo))) gravarDispensadas(mapa);
+}
+
+function aplicarDispensas(candidatos, dispensadas) {
+  if (!(dispensadas instanceof Map) || dispensadas.size === 0) return candidatos;
+  const recusas = new Map();
+  for (const { autor } of dispensadas.values()) {
+    const a = primeiroAutor(autor);
+    if (a) recusas.set(a, (recusas.get(a) || 0) + 1);
+  }
+  const restantes = candidatos.filter(l => !dispensadas.has(chaveTitulo(l.titulo)));
+  const rejeitado = (l) => (recusas.get(primeiroAutor(l.autor)) || 0) >= AUTOR_REJEITADO;
+  return [...restantes.filter(l => !rejeitado(l)), ...restantes.filter(rejeitado)];
+}
+
 /**
  * Títulos dos candidatos que aparecem no texto da resposta.
  *
@@ -433,7 +487,7 @@ function daOpenLibrary(livro, motivo) {
  * 'sem-favoritos' (há leituras, mas nenhuma bem avaliada), 'sem-resultados' e
  * 'falha-busca' (nenhuma fonte respondeu — não é o mesmo que "nada novo").
  */
-export async function gerarRecomendacoes(livros, { googleBooksKey = '', limite = 6, sinal, vistas } = {}) {
+export async function gerarRecomendacoes(livros, { googleBooksKey = '', limite = 6, sinal, vistas, dispensadas } = {}) {
   const perfil = perfilLeitor(livros);
 
   if (perfil.totalLidos === 0) {
@@ -495,11 +549,14 @@ export async function gerarRecomendacoes(livros, { googleBooksKey = '', limite =
     candidatos.push(livro);
   }
 
-  if (candidatos.length === 0) {
+  // Dispensas antes da rotação: um autor recusado fica no fim mesmo entre as
+  // novidades. Sem candidatos depois disso, é "nada novo" como antes.
+  const aceitos = aplicarDispensas(candidatos, dispensadas);
+  if (aceitos.length === 0) {
     return { recomendacoes: [], fila: [], perfil, motivo: 'sem-resultados' };
   }
 
-  const fila = paginar(priorizarNaoVistas(candidatos, vistas), limite);
+  const fila = paginar(priorizarNaoVistas(aceitos, vistas), limite);
   return {
     recomendacoes: fila.slice(0, limite),
     fila,

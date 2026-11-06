@@ -65,6 +65,49 @@ describe('useLivros sem login', () => {
     });
   });
 
+  it('começar a ler marca a data de início (ao adicionar e ao mudar o status)', async () => {
+    const { result } = renderHook(() => useLivros(null));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => { await result.current.adicionar({ titulo: 'Duna', status: 'lendo' }); });
+    expect(result.current.livros[0].dataInicio).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+
+    await act(async () => { await result.current.adicionar({ titulo: 'Emma', status: 'quero-ler' }); });
+    const emma = result.current.livros.find(l => l.titulo === 'Emma');
+    expect(emma.dataInicio).toBeUndefined();
+    await act(async () => { await result.current.atualizar(emma.id, { status: 'lendo' }); });
+    expect(result.current.livros.find(l => l.titulo === 'Emma').dataInicio).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  it('livros gravados em sequência rápida têm ids diferentes', async () => {
+    const { result } = renderHook(() => useLivros(null));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    await act(async () => {
+      for (const t of ['A', 'B', 'C', 'D']) await result.current.adicionar({ titulo: t, status: 'quero-ler' });
+    });
+    const ids = result.current.livros.map(l => l.id);
+    expect(new Set(ids).size).toBe(4);
+  });
+
+  it('marcar como lido leva o progresso à última página', async () => {
+    const { result } = renderHook(() => useLivros(null));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    await act(async () => { await result.current.adicionar({ titulo: 'Duna', status: 'lendo', paginas: '680', paginaAtual: 300 }); });
+    await act(async () => { await result.current.atualizar(result.current.livros[0].id, { status: 'lido' }); });
+    expect(result.current.livros[0].paginaAtual).toBe(680);
+  });
+
+  // Importar o Goodreads com 200 livros "lidos" sem data jogava todos na meta
+  // deste ano, se a data de hoje fosse carimbada como no cadastro manual.
+  it('na importação, lido sem data continua sem data', async () => {
+    const { result } = renderHook(() => useLivros(null));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    await act(async () => {
+      await result.current.adicionar({ titulo: 'Antigo', status: 'lido', dataTermino: '' }, { datarAutomaticamente: false });
+    });
+    expect(result.current.livros[0].dataTermino).toBe('');
+  });
+
   it('preenche dataTermino ao adicionar um livro já lido', async () => {
     const { result } = renderHook(() => useLivros(null));
     await waitFor(() => expect(result.current.loading).toBe(false));

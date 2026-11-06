@@ -3,6 +3,11 @@ import { StarRating } from './StarRating';
 import { PhotoUpload } from './PhotoUpload';
 import { CapaLivro } from './CapaLivro';
 
+// O documento do livro tem limite de 1 MiB no Firestore; 50 trechos de até
+// 1000 caracteres ficam bem longe disso.
+const MAX_TRECHOS = 50;
+const MAX_CHARS_TRECHO = 1000;
+
 export function ResenhaModal({ livro, DA, GRAD_BTN, onSalvar, onFechar }) {
   const [resenha, setResenha]         = useState(livro.resenha || '');
   const [nota, setNota]               = useState(livro.nota || 0);
@@ -17,6 +22,42 @@ export function ResenhaModal({ livro, DA, GRAD_BTN, onSalvar, onFechar }) {
   // carregado mandava `fotoUsuario: null` e APAGAVA a foto do banco. Só quem
   // mexeu na foto tem direito de alterá-la.
   const [fotoTrocada, setFotoTrocada] = useState(false);
+
+  // Detalhes que não cabiam no cadastro original — sem eles, livro antigo da
+  // estante nunca teria progresso, ritmo ou série.
+  const [dataInicio, setDataInicio] = useState(livro.dataInicio || '');
+  const [paginas, setPaginas]       = useState(livro.paginas ? String(livro.paginas) : '');
+  const [serie, setSerie]           = useState(livro.serie || '');
+  const [volume, setVolume]         = useState(livro.volume ? String(livro.volume) : '');
+  const [trechos, setTrechos]       = useState(Array.isArray(livro.trechos) ? livro.trechos : []);
+  const [novoTrecho, setNovoTrecho] = useState('');
+  const [paginaTrecho, setPaginaTrecho] = useState('');
+
+  const adicionarTrecho = () => {
+    const texto = novoTrecho.trim().slice(0, MAX_CHARS_TRECHO);
+    if (!texto || trechos.length >= MAX_TRECHOS) return;
+    const pagina = Number.parseInt(paginaTrecho, 10);
+    setTrechos(t => [...t, pagina > 0 ? { texto, pagina } : { texto }]);
+    setNovoTrecho('');
+    setPaginaTrecho('');
+  };
+
+  const salvar = () => {
+    const vol = Number.parseInt(volume, 10);
+    onSalvar(resenha, nota, fotoTrocada ? fotoUsuario : undefined, {
+      dataInicio,
+      paginas: Number.parseInt(paginas, 10) > 0 ? String(Number.parseInt(paginas, 10)) : '',
+      serie: serie.trim(),
+      volume: vol > 0 ? vol : '',
+      trechos,
+    });
+  };
+
+  const campo = {
+    width: '100%', padding: '9px 11px', borderRadius: '10px', boxSizing: 'border-box',
+    border: `2px solid ${DA.warmBeige}`, fontSize: '13px', fontFamily: 'inherit', color: DA.espresso,
+  };
+  const rotulo = { display: 'block', fontSize: '12px', fontWeight: '700', color: DA.walnut, marginBottom: '5px' };
 
   const trocarFoto = (nova) => { setFotoUsuario(nova); setFotoTrocada(true); };
   // `temFoto` vem do documento do livro e responde antes de a imagem chegar.
@@ -126,6 +167,66 @@ export function ResenhaModal({ livro, DA, GRAD_BTN, onSalvar, onFechar }) {
           </p>
         </div>
 
+        {/* Trechos favoritos */}
+        <div style={{ marginBottom: '22px' }}>
+          <h4 style={{ fontSize: '14px', color: DA.espresso, marginBottom: '8px' }}>❝ Trechos favoritos</h4>
+          {trechos.length > 0 && (
+            <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {trechos.map((t, i) => (
+                <li key={i} style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', padding: '10px 12px', background: DA.cream, borderRadius: '10px', borderLeft: `3px solid ${DA.copper}` }}>
+                  <p style={{ flex: 1, fontFamily: 'var(--fonte-livro)', fontSize: '13px', fontWeight: 400, fontStyle: 'italic', color: DA.espresso, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>
+                    “{t.texto}”{t.pagina ? <span style={{ fontStyle: 'normal', color: DA.walnut, fontSize: '11px' }}> — p. {t.pagina}</span> : null}
+                  </p>
+                  <button type="button" onClick={() => setTrechos(lista => lista.filter((_, j) => j !== i))}
+                    aria-label="Remover trecho"
+                    style={{ background: 'none', border: 'none', color: DA.walnut, cursor: 'pointer', fontSize: '14px', padding: '0 2px' }}>✕</button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {trechos.length < MAX_TRECHOS ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <textarea value={novoTrecho} onChange={e => setNovoTrecho(e.target.value)} rows={2}
+                maxLength={MAX_CHARS_TRECHO}
+                placeholder="Copie aqui uma frase que marcou você…"
+                aria-label="Novo trecho"
+                style={{ ...campo, resize: 'vertical', lineHeight: 1.5 }} />
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <input type="number" min="1" value={paginaTrecho} onChange={e => setPaginaTrecho(e.target.value)}
+                  placeholder="Página" aria-label="Página do trecho" style={{ ...campo, width: '100px' }} />
+                <button type="button" onClick={adicionarTrecho} disabled={!novoTrecho.trim()} style={{
+                  padding: '8px 14px', borderRadius: '10px', border: `1px solid ${DA.copper}`,
+                  background: 'white', color: DA.copper, fontWeight: '800', fontSize: '13px',
+                  cursor: novoTrecho.trim() ? 'pointer' : 'default', opacity: novoTrecho.trim() ? 1 : 0.5,
+                }}>
+                  Guardar trecho
+                </button>
+              </div>
+            </div>
+          ) : (
+            <p style={{ fontSize: '12px', color: DA.walnut }}>Limite de {MAX_TRECHOS} trechos por livro.</p>
+          )}
+        </div>
+
+        {/* Detalhes da leitura */}
+        <div style={{ marginBottom: '22px' }}>
+          <h4 style={{ fontSize: '14px', color: DA.espresso, marginBottom: '10px' }}>Detalhes da leitura</h4>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px' }}>
+            <label style={rotulo}>Comecei em
+              <input type="date" min="1900-01-01" max="2100-12-31" value={dataInicio} onChange={e => setDataInicio(e.target.value)} style={{ ...campo, marginTop: '5px' }} />
+            </label>
+            <label style={rotulo}>Total de páginas
+              <input type="number" min="1" value={paginas} onChange={e => setPaginas(e.target.value)} style={{ ...campo, marginTop: '5px' }} />
+            </label>
+            <label style={rotulo}>Série
+              <input type="text" value={serie} onChange={e => setSerie(e.target.value)} placeholder="Ex.: Duna" style={{ ...campo, marginTop: '5px' }} />
+            </label>
+            <label style={rotulo}>Volume
+              <input type="number" min="1" value={volume} onChange={e => setVolume(e.target.value)} style={{ ...campo, marginTop: '5px' }} />
+            </label>
+          </div>
+        </div>
+
         {/* Botões */}
         <div style={{ display:'flex', gap:'12px' }}>
           <button onClick={onFechar} style={{
@@ -140,7 +241,7 @@ export function ResenhaModal({ livro, DA, GRAD_BTN, onSalvar, onFechar }) {
           </button>
           {/* `undefined` quando ninguém mexeu na foto: é o que diz a
               `separarFoto` para não tocar nela. */}
-          <button onClick={() => onSalvar(resenha, nota, fotoTrocada ? fotoUsuario : undefined)} style={{
+          <button onClick={salvar} style={{
             flex:1, padding:'13px', borderRadius:'10px', border:'none',
             background: GRAD_BTN, color: DA.cream, fontWeight:'800', cursor:'pointer',
             fontSize:'14px', boxShadow:`0 4px 14px rgba(107,30,42,0.35)`,

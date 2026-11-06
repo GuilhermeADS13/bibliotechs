@@ -1,18 +1,32 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { StarRating } from './StarRating';
 import { PhotoUpload } from './PhotoUpload';
+import { LeitorCodigo } from './LeitorCodigo';
 import { buscarNaOpenLibrary } from '../openlibrary';
+import { buscarPorIsbn, isbnValido } from '../isbn';
 
-export function BookForm({ onSave, DA, GRAD_BTN }) {
+const VAZIO = {
+  titulo: '', autor: '', genero: '', paginas: '',
+  dataTermino: '', dataInicio: '', status: 'quero-ler', capa: '', resenha: '',
+  serie: '', volume: '',
+};
+
+// `inicial`: chegada pré-preenchida, vinda de "Continue a série" nas
+// recomendações — já com série, volume e autor, e a busca disparada.
+export function BookForm({ onSave, DA, GRAD_BTN, inicial = null }) {
   const [loading, setLoading]         = useState(false);
   const [nota, setNota]               = useState(0);
   const [sugestoes, setSugestoes]     = useState([]);
   const [erro, setErro]               = useState('');
   const [fotoUsuario, setFotoUsuario] = useState(null);
-  const [formData, setFormData]       = useState({
-    titulo: '', autor: '', genero: '', paginas: '',
-    dataTermino: '', status: 'quero-ler', capa: '', resenha: ''
-  });
+  const [lendoCodigo, setLendoCodigo] = useState(false);
+  const [formData, setFormData]       = useState(() => ({
+    ...VAZIO,
+    ...(inicial ? {
+      titulo: inicial.titulo || '', autor: inicial.autor || '',
+      serie: inicial.serie || '', volume: inicial.volume ? String(inicial.volume) : '',
+    } : {}),
+  }));
 
   const GOOGLE_BOOKS_URL = 'https://www.googleapis.com/books/v1/volumes';
   const GOOGLE_BOOKS_KEY = import.meta.env.VITE_GOOGLE_BOOKS_API_KEY || '';
@@ -27,9 +41,25 @@ export function BookForm({ onSave, DA, GRAD_BTN }) {
     else setErro(mensagemSeVazio);
   };
 
+  // ISBN: pelo código de barras ou digitado no campo de título.
+  const buscarIsbn = async (isbn) => {
+    setLoading(true);
+    setErro('');
+    setSugestoes([]);
+    try {
+      const achados = await buscarPorIsbn(isbn, { googleBooksKey: GOOGLE_BOOKS_KEY });
+      if (achados.length === 1) selecionar(achados[0]);
+      else if (achados.length > 1) setSugestoes(achados);
+      else setErro(`Não encontrei o ISBN ${isbn} na Google Books nem na Open Library. Busque pelo título.`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const buscar = async () => {
     const titulo = formData.titulo.trim();
     const autor  = formData.autor.trim();
+    if (isbnValido(titulo)) return buscarIsbn(titulo);
 
     const queryParts = [];
     if (titulo.length >= 2) queryParts.push(`intitle:${titulo}`);
@@ -105,8 +135,17 @@ export function BookForm({ onSave, DA, GRAD_BTN }) {
       setErro('Escreva o título do livro antes de salvar.');
       return;
     }
-    onSave({ ...formData, nota, fotoUsuario });
-    setFormData({ titulo: '', autor: '', genero: '', paginas: '', dataTermino: '', status: 'quero-ler', capa: '', resenha: '' });
+    const { volume, serie, dataInicio, ...resto } = formData;
+    onSave({
+      ...resto,
+      // Campos novos só entram quando preenchidos: o livro sem série continua
+      // com o mesmo formato de antes.
+      ...(serie.trim() ? { serie: serie.trim() } : {}),
+      ...(Number.parseInt(volume, 10) > 0 ? { volume: Number.parseInt(volume, 10) } : {}),
+      ...(dataInicio ? { dataInicio } : {}),
+      nota, fotoUsuario,
+    });
+    setFormData(VAZIO);
     setNota(0);
     setSugestoes([]);
     setErro('');
@@ -131,6 +170,12 @@ export function BookForm({ onSave, DA, GRAD_BTN }) {
 
   const onFocus = e => e.target.style.borderColor = DA?.copper;
   const onBlur  = e => e.target.style.borderColor = DA?.warmBeige;
+
+  // Chegou pré-preenchido: busca já, para a pessoa só escolher o volume.
+  useEffect(() => {
+    if (inicial?.titulo) buscar();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -158,7 +203,18 @@ export function BookForm({ onSave, DA, GRAD_BTN }) {
             onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}>
             {loading ? '⏳ Buscando...' : '🔍 Buscar'}
           </button>
+          <button type="button" onClick={() => setLendoCodigo(true)} disabled={loading}
+            title="Ler o código de barras do livro" aria-label="Ler o código de barras do livro"
+            style={{
+              background: 'white', color: DA?.oxblood, border: `2px solid ${DA?.oxblood}`, borderRadius: '10px',
+              padding: '0 14px', fontWeight: '800', cursor: 'pointer', fontSize: '18px', flexShrink: 0,
+            }}>
+            📷
+          </button>
         </div>
+        <p style={{ fontSize: '11px', color: DA?.walnut, marginTop: '6px' }}>
+          Também dá para digitar o ISBN (o número do código de barras) no lugar do título.
+        </p>
 
         {/* Mensagem de erro */}
         {erro && (
@@ -242,6 +298,24 @@ export function BookForm({ onSave, DA, GRAD_BTN }) {
             value={formData.dataTermino} style={{ ...inp, cursor: 'pointer' }}
             onChange={e => set('dataTermino', e.target.value)} onFocus={onFocus} onBlur={onBlur} />
         </div>
+        {formData.status !== 'quero-ler' && (
+          <div>
+            <Label sub="(opcional)">Data de início</Label>
+            <input type="date" min="1900-01-01" max="2100-12-31"
+              value={formData.dataInicio} style={{ ...inp, cursor: 'pointer' }}
+              onChange={e => set('dataInicio', e.target.value)} onFocus={onFocus} onBlur={onBlur} />
+          </div>
+        )}
+        <div>
+          <Label sub="(opcional)">Série</Label>
+          <input type="text" placeholder="Ex.: Duna" value={formData.serie} style={inp}
+            onChange={e => set('serie', e.target.value)} onFocus={onFocus} onBlur={onBlur} />
+        </div>
+        <div>
+          <Label sub="(opcional)">Volume da série</Label>
+          <input type="number" min="1" placeholder="Ex.: 1" value={formData.volume} style={inp}
+            onChange={e => set('volume', e.target.value)} onFocus={onFocus} onBlur={onBlur} />
+        </div>
       </div>
 
       {/* Avaliação */}
@@ -274,6 +348,12 @@ export function BookForm({ onSave, DA, GRAD_BTN }) {
         onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(107,30,42,0.35)'; }}>
         💾 Salvar na Estante
       </button>
+
+      {lendoCodigo && (
+        <LeitorCodigo DA={DA}
+          onLido={(isbn) => { setLendoCodigo(false); set('titulo', isbn); buscarIsbn(isbn); }}
+          onFechar={() => setLendoCodigo(false)} />
+      )}
     </form>
   );
 }

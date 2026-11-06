@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { calcularEstatisticas, resumoMensalTexto, MESES_LONGOS } from '../estatisticas';
-import { gerarRecomendacoes, lerVistas, registrarVistas, citadosNaResposta } from '../recomendacoes';
+import {
+  gerarRecomendacoes, lerVistas, registrarVistas, citadosNaResposta, lerDispensadas,
+} from '../recomendacoes';
 import {
   montarContexto, perguntarAoModelo, mensagemDeFalha,
   identificarLivroMencionado, contextoDoLivro, contextoDeRecomendacoes,
@@ -193,6 +195,7 @@ export function LiteraryAgent({
         googleBooksKey,
         limite: 6,
         vistas: lerVistas(),
+        dispensadas: lerDispensadas(),
       });
       candidatosIndicados = r.recomendacoes;
       contexto += contextoDeRecomendacoes(r.recomendacoes, r.perfil);
@@ -363,6 +366,7 @@ export function LiteraryAgent({
         googleBooksKey,
         limite: 4,
         vistas: lerVistas(),
+        dispensadas: lerDispensadas(),
       });
       // Aqui a lista vai inteira para a tela, então as quatro contam como vistas.
       registrarVistas(recomendacoes.map(r => r.titulo));

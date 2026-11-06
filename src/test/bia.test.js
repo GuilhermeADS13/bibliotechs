@@ -89,6 +89,26 @@ describe('montarContexto', () => {
       expect(ctx).toContain('Lendo agora: "Torto Arado" (Itamar Vieira Junior)');
     });
 
+    it('traz progresso, ritmo e previsão de quem está sendo lido', () => {
+      const hoje = new Date();
+      const inicio = new Date(hoje); inicio.setDate(hoje.getDate() - 10);
+      const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const c = montarContexto([{ id: 1, titulo: 'Duna', status: 'lendo', paginas: '300', paginaAtual: 100, dataInicio: iso(inicio) }], 2026);
+      expect(c).toMatch(/"Duna": página 100 de 300 \(33%\)/);
+      expect(c).toMatch(/ritmo de 10 pág\.\/dia/);
+      expect(c).toMatch(/previsão de término no ritmo atual: \d{4}-\d{2}-\d{2}/);
+    });
+
+    it('traz tempo médio por livro, séries interrompidas e trechos marcados', () => {
+      const c = montarContexto([
+        { id: 1, titulo: 'Duna', autor: 'Frank Herbert', status: 'lido', dataInicio: '2026-01-01', dataTermino: '2026-01-21',
+          serie: 'Duna', volume: 1, trechos: [{ texto: 'O medo mata a mente.', pagina: 12 }] },
+      ], 2026);
+      expect(c).toMatch(/Tempo médio para terminar um livro: 20 dia/);
+      expect(c).toMatch(/Séries interrompidas[\s\S]*Duna \(Frank Herbert\): leu até o volume 1/);
+      expect(c).toMatch(/TRECHOS QUE A PESSOA MARCOU[\s\S]*"Duna", p\. 12: «O medo mata a mente\.»/);
+    });
+
     it('limita a fila para não estourar o contexto', () => {
       const muitos = Array.from({ length: 50 }, (_, i) => ({ id: i, titulo: `Fila ${i}`, status: 'quero-ler' }));
       const c = montarContexto(muitos, 2026);

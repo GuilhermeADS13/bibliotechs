@@ -1,5 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { gerarRecomendacoes, chaveTitulo, lerVistas, registrarVistas } from '../recomendacoes';
+import {
+  gerarRecomendacoes, chaveTitulo, lerVistas, registrarVistas,
+  lerDispensadas, dispensar, desfazerDispensa,
+} from '../recomendacoes';
+import { seriesEmAndamento } from '../leitura';
 import { sugerirAutoresParecidos, mensagemDeFalha } from '../bia';
 import { CapaLivro } from './CapaLivro';
 
@@ -64,6 +68,23 @@ export function Recomendacoes({ livros, DA, GRAD_BTN, googleBooksKey, onIrParaAd
   const [autores, setAutores]     = useState({ estado: 'inicial', lista: [], mensagem: '' });
   // Títulos que a pessoa acabou de mandar para a estante nesta visita.
   const [adicionados, setAdicionados] = useState({});
+  // Dispensados somem na hora, inclusive os que vieram do cache da sessão.
+  const [dispensados, setDispensados] = useState(() => new Set(lerDispensadas().keys()));
+  const [ultimoDispensado, setUltimoDispensado] = useState(null);
+
+  const dispensarLivro = (livro) => {
+    dispensar(livro);
+    setDispensados(s => new Set(s).add(chaveTitulo(livro.titulo)));
+    setUltimoDispensado(livro);
+  };
+  const desfazer = () => {
+    if (!ultimoDispensado) return;
+    desfazerDispensa(ultimoDispensado.titulo);
+    setDispensados(s => { const n = new Set(s); n.delete(chaveTitulo(ultimoDispensado.titulo)); return n; });
+    setUltimoDispensado(null);
+  };
+
+  const series = useMemo(() => seriesEmAndamento(livros), [livros]);
   const abortRef = useRef(null);
   const abortAutoresRef = useRef(null);
   const forcarBusca = useRef(false);
@@ -94,8 +115,9 @@ export function Recomendacoes({ livros, DA, GRAD_BTN, googleBooksKey, onIrParaAd
     [livros]
   );
   const visiveis = useMemo(
-    () => fila.filter(l => adicionados[l.titulo] || !naEstante.has(chaveTitulo(l.titulo))),
-    [fila, naEstante, adicionados]
+    () => fila.filter(l => !dispensados.has(chaveTitulo(l.titulo))
+      && (adicionados[l.titulo] || !naEstante.has(chaveTitulo(l.titulo)))),
+    [fila, naEstante, adicionados, dispensados]
   );
   const totalPaginas = Math.max(1, Math.ceil(visiveis.length / POR_PAGINA));
   const paginaAtual = pagina % totalPaginas;
@@ -163,7 +185,10 @@ export function Recomendacoes({ livros, DA, GRAD_BTN, googleBooksKey, onIrParaAd
     setErro('');
     setAutores({ estado: 'inicial', lista: [], mensagem: '' });
 
-    gerarRecomendacoes(livrosRef.current, { googleBooksKey, limite: POR_PAGINA, sinal: controller.signal, vistas: lerVistas() })
+    gerarRecomendacoes(livrosRef.current, {
+      googleBooksKey, limite: POR_PAGINA, sinal: controller.signal,
+      vistas: lerVistas(), dispensadas: lerDispensadas(),
+    })
       .then(r => {
         if (!ativo) return;
         aplicar(r);
@@ -282,6 +307,29 @@ export function Recomendacoes({ livros, DA, GRAD_BTN, googleBooksKey, onIrParaAd
         </div>
       )}
 
+      {/* Série interrompida vem antes das sugestões: é a recomendação mais
+          certeira que existe — a pessoa já gostou do volume anterior. */}
+      {!carregando && series.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
+          {series.slice(0, 3).map(s => (
+            <div key={s.serie} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap', padding: '12px 14px', borderRadius: '12px', background: `${DA.forestGreen}12`, border: `1px solid ${DA.forestGreen}44` }}>
+              <p style={{ fontSize: '13px', color: DA.espresso, minWidth: 0, flex: '1 1 220px' }}>
+                <strong className="titulo-livro">Continue {s.serie}.</strong>{' '}
+                Você leu até o volume {s.ultimoLido}; o volume {s.proximo} ainda não está na estante.
+              </p>
+              {onIrParaAdicionar && (
+                <button
+                  onClick={() => onIrParaAdicionar({ titulo: s.serie, autor: s.autor, serie: s.serie, volume: s.proximo })}
+                  style={botaoContorno(DA.forestGreen)}
+                >
+                  Procurar o volume {s.proximo}
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
       {!erro && !carregando && fonte && itens.length > 0 && (
         <p style={{ fontSize: '11px', color: DA.walnut, opacity: 0.8, marginBottom: '12px' }}>
           A Google Books não respondeu agora — estas sugestões vieram da {fonte}, que tem menos edições em português.
@@ -341,16 +389,35 @@ export function Recomendacoes({ livros, DA, GRAD_BTN, googleBooksKey, onIrParaAd
 
                   {/* Antes só havia um link para a aba Adicionar, onde a pessoa
                       redigitava tudo o que já estava na tela. */}
-                  {onAdicionarLivro && (
-                    <button onClick={() => adicionar(livro)} disabled={!!adicionados[livro.titulo]} style={botaoQueroLer(livro.titulo)}>
-                      {adicionados[livro.titulo] ? '✓ Na estante' : '+ Quero ler'}
-                    </button>
-                  )}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', marginTop: '8px' }}>
+                    {onAdicionarLivro && (
+                      <button onClick={() => adicionar(livro)} disabled={!!adicionados[livro.titulo]} style={{ ...botaoQueroLer(livro.titulo), marginTop: 0 }}>
+                        {adicionados[livro.titulo] ? '✓ Na estante' : '+ Quero ler'}
+                      </button>
+                    )}
+                    {!adicionados[livro.titulo] && (
+                      <button onClick={() => dispensarLivro(livro)} style={{
+                        background: 'none', border: 'none', padding: '4px 0', cursor: 'pointer',
+                        fontSize: '11px', fontWeight: '600', color: DA.walnut, textDecoration: 'underline', textUnderlineOffset: '3px',
+                      }}>
+                        Não tenho interesse
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             );
           })}
         </div>
+      )}
+
+      {ultimoDispensado && (
+        <p role="status" style={{ fontSize: '12px', color: DA.walnut, marginTop: '12px', textAlign: 'center' }}>
+          “{ultimoDispensado.titulo}” não vai mais aparecer.{' '}
+          <button onClick={desfazer} style={{ background: 'none', border: 'none', color: DA.oxblood, fontWeight: '800', cursor: 'pointer', textDecoration: 'underline', fontSize: '12px' }}>
+            Desfazer
+          </button>
+        </p>
       )}
 
       {/* No celular a página vira uma coluna de seis cards, e o botão do topo

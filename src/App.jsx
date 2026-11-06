@@ -13,6 +13,8 @@ import { BackgroundCarousel } from './components/BackgroundCarousel';
 import { LoveStories } from './components/LoveStories';
 import { loginGoogle, completeRedirectLogin } from './login';
 import { CapaLivro } from './components/CapaLivro';
+import { progressoDe } from './leitura';
+import { ImportarEstante } from './components/ImportarEstante';
 import { LiteraryAgent } from './components/LiteraryAgent';
 import { Estatisticas } from './components/Estatisticas';
 import { BiaAvatar } from './components/BiaAvatar';
@@ -70,6 +72,7 @@ export default function App() {
   const [busca, setBusca]               = useState('');
   const [filtroStatus, setFiltroStatus] = useState('todos');
   const [modalResenha, setModalResenha] = useState(null);
+  const [buscaInicial, setBuscaInicial] = useState(null);
   const [fotoModal, setFotoModal]       = useState(null);
   const [metaAnual, setMetaAnual]       = useState(() => Number(localStorage.getItem('da-meta') || 12));
   const [editandoMeta, setEditandoMeta] = useState(false);
@@ -146,8 +149,8 @@ export default function App() {
   // "lido" sem dataTermino, que não entra em `ultimoLido` mas existe.
   const destaqueSemLeitura = lendoAgora[0] || queroLer[0] || livros[0] || null;
 
-  const salvarResenha = (resenha, nota, fotoUsuario) => {
-    const dados = { resenha, nota };
+  const salvarResenha = (resenha, nota, fotoUsuario, detalhes = {}) => {
+    const dados = { resenha, nota, ...detalhes };
     if (fotoUsuario !== undefined) dados.fotoUsuario = fotoUsuario;
     atualizarLivro(modalResenha.id, dados);
     setModalResenha(null);
@@ -427,6 +430,14 @@ export default function App() {
                         )}
                       </div>
                       <p style={{ fontSize:'11px', fontWeight:'700', marginTop:'8px', color:DA.chocolate, maxWidth:'100px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{l.titulo}</p>
+                      {progressoDe(l)?.pct != null && (
+                        <div title={`${progressoDe(l).pct}% lido`} style={{ width:'100px', marginTop:'5px' }}>
+                          <div aria-hidden="true" style={{ height:'4px', borderRadius:'999px', background:`${DA.forestGreen}26`, overflow:'hidden' }}>
+                            <div style={{ width:`${progressoDe(l).pct}%`, height:'100%', background:DA.forestGreen }} />
+                          </div>
+                          <p style={{ fontSize:'10px', color:DA.walnut, marginTop:'3px' }}>{progressoDe(l).pct}%</p>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -495,7 +506,15 @@ export default function App() {
           <div className="page-content">
             <div style={{ background:GLASS_PANEL_STRONG, borderRadius:'20px', padding:'32px', boxShadow:PANEL_SHADOW, border:'1px solid rgba(196,154,108,0.4)', backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)', maxWidth:'640px', margin:'0 auto' }}>
               <h2 style={{ fontWeight:'900', fontSize:'20px', color:DA.espresso, marginBottom:'24px' }}>➕ Adicionar Livro</h2>
-              <BookForm onSave={adicionarLivro} DA={DA} GRAD_BTN={GRAD_BTN} />
+              {/* `key`: um pedido novo de "procurar o próximo volume" remonta o
+                  formulário já preenchido, em vez de misturar com o que havia. */}
+              <BookForm key={buscaInicial ? JSON.stringify(buscaInicial) : 'vazio'} inicial={buscaInicial}
+                onSave={(l) => { setBuscaInicial(null); return adicionarLivro(l); }} DA={DA} GRAD_BTN={GRAD_BTN} />
+            </div>
+            <div style={{ background:GLASS_PANEL_STRONG, borderRadius:'20px', padding:'28px 32px', boxShadow:PANEL_SHADOW, border:'1px solid rgba(196,154,108,0.4)', backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)', maxWidth:'640px', margin:'20px auto 0' }}>
+              <ImportarEstante livros={livros} DA={DA} GRAD_BTN={GRAD_BTN}
+                onImportar={(l) => adicionar(l, { datarAutomaticamente: false })}
+                onConcluir={() => setAba('estante')} />
             </div>
           </div>
         )}
@@ -507,7 +526,12 @@ export default function App() {
             DA={DA}
             GRAD_BTN={GRAD_BTN}
             googleBooksKey={import.meta.env.VITE_GOOGLE_BOOKS_API_KEY}
-            onIrParaAdicionar={() => setAba('adicionar')}
+            onIrParaAdicionar={(inicial) => {
+              // Pode chegar o evento do clique (link "Adicione à sua estante"):
+              // só um objeto com título é pedido de busca pré-preenchida.
+              setBuscaInicial(inicial?.titulo ? inicial : null);
+              setAba('adicionar');
+            }}
             onIrParaMetas={() => setAba('metas')}
             onAdicionarLivro={adicionar}
           />

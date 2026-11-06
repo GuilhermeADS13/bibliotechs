@@ -53,6 +53,15 @@ function lerLocais() {
   } catch { return []; }
 }
 
+// Id de livro sem conta. Era `Date.now()`: dois livros gravados no mesmo
+// milissegundo — o que a importação faz em sequência — ganhavam o MESMO id, e
+// editar ou remover um mexia nos dois. Continua número e crescente.
+let ultimoIdLocal = 0;
+function novoIdLocal() {
+  ultimoIdLocal = Math.max(Date.now(), ultimoIdLocal + 1);
+  return ultimoIdLocal;
+}
+
 export function useLivros(user) {
   // Começa já com o que está salvo. Começando com [], o efeito que persiste
   // gravava a lista vazia antes da leitura — e, com o StrictMode do `npm run
@@ -113,13 +122,18 @@ export function useLivros(user) {
 
   const hoje = () => new Date().toISOString().split('T')[0];
 
-  const adicionar = async (livro) => {
+  // `datarAutomaticamente: false` é para a importação: lá, "lido" sem data é
+  // leitura antiga de data desconhecida. Carimbar hoje jogaria a estante
+  // importada inteira na meta e nas estatísticas do ano.
+  const adicionar = async (livro, { datarAutomaticamente = true } = {}) => {
     // Garante dataTermino para livros lidos
-    const dataTermino = livro.dataTermino || (livro.status === 'lido' ? hoje() : '');
-    const livroFinal = { ...livro, dataTermino };
+    const dataTermino = livro.dataTermino || (datarAutomaticamente && livro.status === 'lido' ? hoje() : '');
+    // Começar a ler marca o início: é o que permite medir ritmo e prever o fim.
+    const dataInicio = livro.dataInicio || (datarAutomaticamente && livro.status === 'lendo' ? hoje() : '');
+    const livroFinal = { ...livro, dataTermino, ...(dataInicio ? { dataInicio } : {}) };
 
     if (!user) {
-      setLivros(p => [...p, { ...livroFinal, id: Date.now() }]);
+      setLivros(p => [...p, { ...livroFinal, id: novoIdLocal() }]);
       return;
     }
     // Remove campo 'id' gerado pelo client antes de salvar no Firestore
@@ -144,12 +158,19 @@ export function useLivros(user) {
 
   const atualizar = async (id, dados) => {
     let dadosFinal = { ...dados };
+    const livroAtual = livros.find(l => l.id === id);
     // Auto-define dataTermino ao marcar como lido sem data
     if (dados.status === 'lido') {
-      const livroAtual = livros.find(l => l.id === id);
       if (!livroAtual?.dataTermino && !dados.dataTermino) {
         dadosFinal.dataTermino = hoje();
       }
+      // Terminou: o progresso vai para a última página, se o total é conhecido.
+      const total = Number.parseInt(livroAtual?.paginas, 10);
+      if (total > 0 && dados.paginaAtual === undefined) dadosFinal.paginaAtual = total;
+    }
+    // Auto-define dataInicio ao começar a ler
+    if (dados.status === 'lendo' && !livroAtual?.dataInicio && !dados.dataInicio) {
+      dadosFinal.dataInicio = hoje();
     }
     if (!user) { setLivros(p => p.map(l => l.id === id ? { ...l, ...dadosFinal } : l)); return; }
     try {

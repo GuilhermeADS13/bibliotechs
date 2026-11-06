@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import {
   perfilLeitor, gerarRecomendacoes, normalizar, buscarAutor, chaveTitulo, notaAjustada,
-  lerVistas, registrarVistas, citadosNaResposta,
+  lerVistas, registrarVistas, citadosNaResposta, dispensar, lerDispensadas, desfazerDispensa,
 } from '../recomendacoes';
 
 const estante = [
@@ -449,6 +449,33 @@ describe('rotação: o que já foi visto vai para o fim', () => {
 
     localStorage.setItem('da-recs-vistas', '{quebrado');
     expect(lerVistas().size).toBe(0);
+  });
+});
+
+describe('"não tenho interesse"', () => {
+  const lista = (itens) => respostaJson({ items: itens.map(([t, a]) => volume(t, t, { authors: [a] })) });
+  beforeEach(() => localStorage.clear());
+  afterEach(() => { vi.unstubAllGlobals(); localStorage.clear(); });
+
+  it('livro dispensado não volta mais', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => lista([['Ulysses', 'James Joyce'], ['Emma', 'Jane Austen']])));
+    dispensar({ titulo: 'Ulysses', autor: 'James Joyce' });
+    const r = await gerarRecomendacoes([estante[0]], { dispensadas: lerDispensadas() });
+    expect(r.recomendacoes.map(x => x.titulo)).toEqual(['Emma']);
+  });
+
+  it('autor dispensado duas vezes vai para o fim da fila', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => lista([['Dublinenses', 'James Joyce'], ['Emma', 'Jane Austen']])));
+    dispensar({ titulo: 'Ulysses', autor: 'James Joyce' });
+    dispensar({ titulo: 'Finnegans Wake', autor: 'James Joyce' });
+    const r = await gerarRecomendacoes([estante[0]], { dispensadas: lerDispensadas() });
+    expect(r.recomendacoes.map(x => x.titulo)).toEqual(['Emma', 'Dublinenses']);
+  });
+
+  it('desfazer devolve o livro', () => {
+    dispensar({ titulo: 'Ulysses', autor: 'James Joyce' });
+    desfazerDispensa('Ulysses');
+    expect(lerDispensadas().size).toBe(0);
   });
 });
 

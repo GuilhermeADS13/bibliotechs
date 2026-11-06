@@ -17,7 +17,16 @@ Em produção: **[bibliotechs.vercel.app](https://bibliotechs.vercel.app)**
 - 📷 Foto do seu exemplar físico, comprimida no navegador
 - 🎯 Meta anual com gráfico mensal
 - 📊 Estatísticas: ritmo, taxa de conclusão, taxa de abandono, gêneros, autores
-- ✨ Recomendações a partir do que você leu e avaliou
+- ✨ Recomendações a partir do que você leu e avaliou — sem repetir o que você
+  já viu, com "Não tenho interesse" e aviso de série interrompida
+- 📈 Progresso de leitura: página atual, "+10 págs." e previsão de término pelo
+  seu ritmo
+- 🗓️ Data de início: quanto tempo cada livro levou, e a média
+- ❝ Trechos favoritos, com a página
+- 📚 Séries e volumes
+- 📥 Importação do Goodreads ou de planilha própria (CSV)
+- 🏷️ Cadastro pelo código de barras (câmera no Chrome do Android) ou pelo ISBN
+  digitado
 
 ### B.IA — a agente literária
 
@@ -62,7 +71,7 @@ gratuito.
   da Luma, do SAS-AtendimentoPsicologico). Variáveis `LLM_FALLBACK_*` no
   `.env.example`
 - Vercel — hospedagem e função serverless
-- Vitest + Testing Library + MSW — 345 testes
+- Vitest + Testing Library + MSW — 400 testes
 
 Os estilos são inline e CSS próprio (`src/index.css`); o Tailwind está no
 pipeline mas praticamente não é usado pelos componentes.
